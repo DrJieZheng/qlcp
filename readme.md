@@ -23,7 +23,6 @@ rawd = '/path/to/raw/data/'
 redd = '/path/to/reduced/data/'
 
 qlcp.run(
-    None,                   # ini file, if none, use default
     rawd,                   # raw data directory
     redd,                   # reduced data directory
     steps='lbfoipwkcdg',    # steps to do
@@ -42,6 +41,7 @@ qlcp.run(
     ind_chk=[2,3,4],        # checker index
     mode=workmode(workmode.EXIST_OVER+workmode.MISS_ERROR),
                             # how to handle overwrite and missing files
+                            # The following recover the settings in config
     offset_max_dis=100,     # max offset for offset
     se_cmd='sex',           # command to run SExtractor
     cali_max_dis=20.0,      # max distance for identify calibration stars
@@ -49,4 +49,6 @@ qlcp.run(
     draw_phot=False,        # draw photometry result or not
 )
 ```
+
+Detailed manual, see manual.md in Chinese. English version TBW.
 

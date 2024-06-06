@@ -19,7 +19,7 @@ pip3 install qlcp-0.24.6-py3-none-any.whl
 以下为最简调用方式：
 
 ```
-imoprt qlcp
+import qlcp
 
 qlcp.run(
     "path/to/raw/data",
