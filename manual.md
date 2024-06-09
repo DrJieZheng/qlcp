@@ -2,7 +2,7 @@
 
 ## 0. 概述
 
-QLCP （Quick Light Curve Pipeline）为一个地基望远镜时域观测数据处理管线，输入观测原始数据所在目录，最终输出目标的光变曲线以及相关数据。该软件早期版本已经发表在《天文研究与技术》期刊2023年1期。当前版本为重构后版本。
+QLCP （Quick Light Curve Pipeline）为一个地基望远镜时域观测数据处理管线，输入观测原始数据所在目录，最终输出目标的光变曲线以及相关数据。该软件早期版本已经发表在《天文研究与技术》期刊2023年1期。当前版本为重构后版本，对应文章正在编写中。
 
 程序发布在：
 
@@ -16,7 +16,7 @@ QLCP （Quick Light Curve Pipeline）为一个地基望远镜时域观测数据�
 pip3 install qlcp
 ```
 
-要求：Python版本至少为3.10。需要安装的其他软件包为：`numpy`, `scipy`, `matplotlib`, `astropy`, `PyAstronomy`, `qastutil`, `qmatch`，正常情况下，pip3（或pip）会识别到这些依赖项目并进行自动安装。
+要求：Python版本至少为3.10。需要安装的其他软件包为：`numpy`, `scipy`, `matplotlib`, `astropy`, `PyAstronomy`, `tqdm`, `qastutil`, `qmatch`，正常情况下，pip3（或pip）会识别到这些依赖项目并进行自动安装。
 
 ## 2. 运行
 
@@ -63,13 +63,17 @@ ini_file:str|tuple[str]|list[str]=None,
 
 通常为整晚的观测数据的保存位置。程序将自动从其中识别出BIAS、FLAT、科学目标等。
 
-`"raw/20240606_85/",`
+```py
+"raw/20240606_85/",
+```
 
 ### 输出路径 `red_dir` （必选）
 
 如果不存在，程序将自动创建目录。本程序所有输出都在该路径内。
 
-`"red/20240606_85_red/",`
+```py
+"red/20240606_85_red/",
+```
 
 注意：请合理安排数据保存位置，尽量让原始数据和处理结果分离，避免误操作。
 
@@ -79,25 +83,36 @@ ini_file:str|tuple[str]|list[str]=None,
 
 如果指定，只处理指定目标，可以为一个或多个。否则处理所有目标。
 
-`obj="UYUMa",`
+```py
+obj="UYUMa",
+```
 
-`obj=["UYUMa", "ACAnd"],`
+```py
+obj=["UYUMa", "ACAnd"],
+```
 
 ### 处理波段 `band`
 
-如果指定，只处理指定波段，否则处理所有波段。
+如果指定，只处理指定波段，否则处理所有波段。注意，在Python语法中，字符串也是可循环对象，所以如果波段确定只有一个字母，可以直接用字符串。下面两个方法都是正确的。
 
-`band="BVR",`
+```py
+band="BVR",
+```
+
+```py
+band=["B", "V", ],
+```
 
 ### 替代本底 `use_bias` `alt_bias`
 
 如果指定`use_bias`，使用该本底，否则使用当天数据生成的本底。如果当天本底缺失，使用`alt_bias`。
 
-`use_bias="usethis/bias_85.fits/",`
+```py
+use_bias="usethis/bias_85.fits/",
+alt_bias="alt/bias_85.fits/",
+```
 
-`alt_bias="alt/bias_85.fits/",`
-
-优先级： `use_bias` --> 当天本底 --> `alt_bias`。
+优先级： `use_bias` → 当天本底 → `alt_bias`。
 
 ### 替代平场 `use_flat` `alt_flat`
 
@@ -109,9 +124,6 @@ use_flat={
     "V":"usethis/flat_V_85.fits/",
     "R":"usethis/flat_R_85.fits/",
 },
-```
-
-```py
 alt_flat={
     "B":"alt/flat_B_85.fits/",
     "V":"alt/flat_V_85.fits/",
@@ -119,7 +131,7 @@ alt_flat={
 },
 ```
 
-优先级： `use_flat` --> 当天平场 --> `alt_flat`。
+优先级： `use_flat` → 当天平场 → `alt_flat`。
 
 ### 坐标 `alt_coord`
 
@@ -127,7 +139,9 @@ alt_flat={
 
 可以多给，每个目标只根据名字选择自己的。
 
-`alt_coord=("12:34:56", "+23:45:67.89"),`
+```py
+alt_coord=("12:34:56", "+23:45:67.89"),
+```
 
 ```py
 alt_coord={
@@ -140,9 +154,13 @@ alt_coord={
 
 用于指定对齐时的图像，如果指定为整数，则从0开始计数，否则为文件名，如果非当日图像，必须是同一台望远镜的数据。默认为0，即当日该目标该波段第1幅图像。
 
-`base_img=10`
+```py
+base_img=10,
+```
 
-`base_img="base/AAA.fits"`
+```py
+base_img="base/AAA.fits",
+```
 
 关联性：后续的`starxy`参数是目标在本图像中坐标。
 
@@ -152,9 +170,13 @@ alt_coord={
 
 图像的半高全宽采用图中质量较好的星的FWHM的中值。
 
-`aper=8.0,`
+```py
+aper=8.0,
+```
 
-`aper=(3, 6.0, 9, -1.5, -2.5),`
+```py
+aper=(3, 6.0, 9, -1.5, -2.5),
+```
 
 ### 星坐标 `starxy`
 
@@ -230,13 +252,17 @@ ind_chk={"UYUMa": 2},
 - `workmode.MISS_SKIP` 跳过缺失的文件，记录一个警告，但是不报错，对于聚集文件，直接跳过整个步骤。（默认模式）
 - `workmode.MISS_ERROR` 报错，触发异常。
 
-`mode=workmode(workmode.EXIST_APPEND+workmode.MISS_SKIP),`
+```py
+mode=workmode(workmode.EXIST_APPEND+workmode.MISS_SKIP),
+```
 
 ### 步骤 `steps`
 
 本程序分为多个步骤，可以选择性执行，部分步骤顺序可以调整，部分步骤之间有依赖关系。
 
-`steps="lbf",`
+```py
+steps="lbf",
+```
 
 #### 步骤依赖性
 
@@ -272,7 +298,7 @@ graph LR;
 
 相关配置参数：
 
-- `patterns` 文件名模板，列表形式，每个元素是正则表达式，匹配文件名，默认为以下几种
+- `patterns` 文件名模板，列表形式，每个元素是正则表达式，匹配文件名，默认为以下几种（文件名模板会随支持的望远镜增多而增加，后续手册可能不一定和程序同步更新模板。）
     + 减号分割模式 UYUMa-0003I.fit  bias-0001.fits<br>
 `(?P<obj>[^-_]*)-(?P<sn>[0-9]{3,6})(?P<band>[a-zA-Z]{0,1}).fit(s{0,1})`
     + 下划线分割模式 flat\_R\_003.fit TCrB\_V\_001.fits<br>
@@ -406,34 +432,36 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 
 ```py
 # 日志【全局】
-self.file_log = logging.DEBUG     # 文件日志等级
-self.scr_log = logging.INFO       # 屏幕显示日志等级
+file_log = logging.DEBUG     # 文件日志等级
+scr_log = logging.INFO       # 屏幕显示日志等级
 # 观测站【i】
-self.site_lon = 117.57722         # 观测站经度
-self.site_lat = 40.395833         # 观测站纬度
-self.site_ele = 960               # 观测站海拔
-self.site_tz  = 8                 # 观测站时区
+site_lon = 117.57722         # 观测站经度
+site_lat = 40.395833         # 观测站纬度
+site_ele = 960               # 观测站海拔
+site_tz  = 8                 # 观测站时区
 # 平场采纳【f】
-self.flat_limit_low  =  5000      # 平场图像采纳下限
-self.flat_limit_high = 50000      # 平场图像采纳上限
+flat_limit_low  =  5000      # 平场图像采纳下限
+flat_limit_high = 50000      # 平场图像采纳上限
 # 图像裁剪【i】
-self.border_cut = 0               # 裁边像素
+border_cut = 0               # 裁边像素
 # 绘制测光结果【p】
-self.draw_phot = False            # 是否画图
-self.draw_phot_err = 0.05         # 标上的星的误差上限
+draw_phot = False            # 是否画图
+draw_phot_err = 0.05         # 标上的星的误差上限
 # 图像对齐【o】
-self.offset_max_dis = 250         # 对齐最远距离
+offset_max_dis = 250         # 对齐最远距离
 # 目标匹配【kc】
-self.match_max_dis = 10.0         # 目标匹配最大误差
+match_max_dis = 10.0         # 目标匹配最大误差
 # 选星【k】
-self.pick_err_max = 0.02          # 优质星误差上限
-self.pick_bad_max = 0.2           # 整晚的数据缺失率上限
-self.pick_var_std = 0.05          # 变星标准差下限
-self.pick_var_rad = 0.5           # 变星在图像中的区域
-self.pick_ref_n = 20              # 比较星最多个数
-self.pick_ref_std = 0.05          # 比较星整晚标准差上限
-self.pick_ref_dif = 0.10          # 比较星整晚最亮最暗差上限
+pick_err_max = 0.02          # 优质星误差上限
+pick_bad_max = 0.2           # 整晚的数据缺失率上限
+pick_var_std = 0.05          # 变星标准差下限
+pick_var_rad = 0.5           # 变星在图像中的区域
+pick_ref_n = 20              # 比较星最多个数
+pick_ref_std = 0.05          # 比较星整晚标准差上限
+pick_ref_dif = 0.10          # 比较星整晚最亮最暗差上限
 ```
+
+可以自行编撰合适的ini文件，并在调用时提供，例如观测站地理信息、文件名格式等。格式参考以上格式。
 
 ## 输出路径结构
 
