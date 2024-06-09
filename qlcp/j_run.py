@@ -18,7 +18,7 @@ from .q_imgcorr import imgcorr
 from .q_offset import offset
 from .q_phot import phot
 from .q_pick import pick
-from .q_wcs import wcs
+# from .q_wcs import wcs
 from .q_cata import cata
 from .q_cali import cali
 from .q_graph import graph
@@ -38,7 +38,7 @@ def run(
         base_img:str=None,
         se_cmd:str="source-extractor",
         aper:float|list[float]=None,
-        starxy:list[list[float]]=None,
+        starxy:list[list[float]]|dict=None,
         ind_tgt:int|list[int]=None,
         ind_ref:int|list[int]=None,
         ind_chk:int|list[int]=None,
@@ -76,6 +76,7 @@ def run(
     :param se_cmd: command of source-extractor, if empty or None, use sep package
     :param aper: one or multi aperture(s) for photometry
     :param starxy: a list contains xy of star, if not, auto pick
+                 if dict, key is object name and value is list of xy
     :param ind_tgt: index of target star, if not, use 0
     :param ind_ref: index of reference star, if not, use 1:n-1
     :param ind_chk: index of check star, if not, use 1:n-1
@@ -136,10 +137,11 @@ def run(
 
             # Offset
             if "o" in steps:
+                g = base_img.get(o, None) if isinstance(base_img, dict) else base_img
                 offset(
                     conf,
                     raw_dir, red_dir, o, b,
-                    base_img,
+                    g,
                     mode
                 )
 
@@ -161,30 +163,47 @@ def run(
             #     )
 
             # picK target, ref, check stars
-            # if k specified, or c required but starxy not given or only one,
-            # if "k" in steps or ("c" in steps and (not starxy or len(starxy) == 1)):
-            #     starxy = pick(
-            #         conf,
-            #         red_dir, o, b,
-            #         mode
-            #     )
+            # if k specified, or c required but starxy not given or only one
+            # here k means pick or not
+            k = "k" in steps or ("c" in steps and (not starxy or len(starxy) == 1))
+            if k:
+                pickxy, picktgt, pickref, pickchk = pick(
+                    conf,
+                    raw_dir, red_dir, o, b,
+                    mode
+                )
+            else:
+                pickxy, picktgt, pickref, pickchk = None, None, None, None
 
             # collect general catalog of stars at xy
             if "c" in steps:
+                # if picked, use pickxy
+                if k:
+                    xy = pickxy
+                else:
+                    xy = starxy.get(o, None) if isinstance(starxy, dict) else starxy
                 cata(
                     conf,
                     raw_dir, red_dir, o, b,
-                    starxy,
+                    xy,
                     base_img,
                     mode
                 )
 
             # differential flux/mag calibration
             if "d" in steps:
+                if k:
+                    i_t = picktgt
+                    i_r = pickref
+                    i_c = pickchk
+                else:
+                    i_t = ind_tgt.get(o, None) if isinstance(ind_tgt, dict) else ind_tgt
+                    i_r = ind_ref.get(o, None) if isinstance(ind_ref, dict) else ind_ref
+                    i_c = ind_chk.get(o, None) if isinstance(ind_chk, dict) else ind_chk
                 cali(
                     conf,
                     raw_dir, red_dir, o, b,
-                    ind_tgt, ind_ref, ind_chk,
+                    i_t, i_r, i_c,
                     mode
                 )
 

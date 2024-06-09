@@ -14,7 +14,7 @@ from qmatch import mean_xy, mean_offset1d
 import matplotlib.pyplot as plt
 from .u_conf import config, workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, hdr_dt, zenum, str2mjd, pkl_dump
+from .u_utils import loadlist, rm_ix, hdr_dt, zenum, str2mjd, pkl_dump, fnbase
 
 
 def offset(
@@ -70,7 +70,7 @@ def offset(
     if isinstance(base_img, int):
         if 0 > base_img or base_img >= len(raw_list):
             base_img = 0
-        base_img = [base_img]
+        base_img = raw_list[base_img]
     elif not isinstance(base_img, str):
         base_img = raw_list[0]
     # if external file not found, use 0th
@@ -93,7 +93,6 @@ def offset(
 
     # load images and process
     for i, (rawf,) in zenum(raw_list):
-        logf.debug(f"Loading {i+1:03d}/{nf:03d}: {rawf:40s}")
 
         # process data
         raw_x, raw_y = mean_xy(fits.getdata(rawf))
@@ -105,7 +104,9 @@ def offset(
         obs_dt = hdr_dt(hdr)[:19]
         obs_mjd[i] = str2mjd(obs_dt) + hdr.get("EXPTIME", 0.0) / 2 / 86400
 
-        logf.debug(f"{'':10s}{obs_mjd[i]:12.7f} | {offset_x[i]:+5d} {offset_y[i]:+5d}")
+        logf.debug(f"{i+1:03d}/{nf:03d}: "
+                   f"{obs_mjd[i]:12.7f}  {offset_x[i]:+5d} {offset_y[i]:+5d}  "
+                   f"{fnbase(rawf)}")
 
     # save new fits
     with open(offset_txt, "w") as ff:
@@ -115,7 +116,7 @@ def offset(
     logf.debug(f"Writing {offset_pkl}")
 
     # draw offset figure
-    fig = plt.figure(figsize=(8, 8))
+    fig = plt.figure(figsize=(6, 6))
     ax_xy = fig.add_axes([0.05, 0.05, 0.60, 0.60])
     ax_xt = fig.add_axes([0.05, 0.70, 0.60, 0.25])
     ax_ty = fig.add_axes([0.70, 0.05, 0.25, 0.60])

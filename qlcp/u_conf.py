@@ -30,8 +30,8 @@ class config:
         # path of the program
         self.here = os.path.realpath(os.path.dirname(__file__)) + "/"   # program path
         # default log level
-        self.file_log = logging.INFO     # log level for file
-        self.scr_log = logging.ERROR     # log level for screen
+        self.file_log = logging.DEBUG     # log level for file
+        self.scr_log = logging.INFO       # log level for screen
         # observatory
         self.site_lon = 117.57722         # longitude 117.34.38
         self.site_lat = 40.395833         # latitude +40.23.45
@@ -41,14 +41,22 @@ class config:
         self.flat_limit_low  =  5000      # low limit for flat level
         self.flat_limit_high = 50000      # high limit for flat level
         # image correction
-        self.border_cut = 10              # cut border pixels
+        self.border_cut = 0               # cut border pixels
         # draw phot result
         self.draw_phot = False            # draw phot result or not
-        self.draw_phot_err = 0.05          # max error of stars to be drawn
+        self.draw_phot_err = 0.05         # max error of stars to be drawn
         # offset max distance
         self.offset_max_dis = 250         # max distance for offset
-        # max calibration distance
-        self.cali_max_dis = 10.0          # max distance for calibration
+        # max matching distance
+        self.match_max_dis = 10.0         # max distance for object matching
+        # star pick
+        self.pick_err_max = 0.02          # max error for pick stars
+        self.pick_bad_max = 0.2           # factor of bad stars
+        self.pick_var_std = 0.05          # std of the variance stars
+        self.pick_var_rad = 0.5           # radius of the variance stars
+        self.pick_ref_n = 20              # number of reference stars
+        self.pick_ref_std = 0.05          # std of the reference stars
+        self.pick_ref_dif = 0.10          # max-min limit of the reference stars
         # wcs setting
         self.wcs_max_err = 0.05           # mag-err limit for choose good stars
         self.wcs_max_n = 1000             # brightest n stars will be used
@@ -152,7 +160,7 @@ class workmode:
                 logf.error(f"Stop missing {filetype}: `{filename}`")
                 raise FileNotFoundError(f"Missing {filetype}: `{filename}`")
             else:  # WMODE.MISS_SKIP or not set
-                logf.warning(f"Skip missing {filetype}: `{filename}`")
+                logf.debug(f"Skip missing {filetype}: `{filename}`")
                 return True
         else:
             return False
@@ -168,10 +176,10 @@ class workmode:
                 logf.error(f"Stop existing {filetype}: `{filename}`")
                 raise FileExistsError(f"Existing {filetype}: `{filename}`")
             elif self.mode_r & workmode.EXIST_OVER:
-                logf.info(f"Overwrite existing {filetype}: `{filename}`")
+                logf.debug(f"Overwrite existing {filetype}: `{filename}`")
                 return False
             else:  # WMODE.EXIST_SKIP or not set or APPEND
-                logf.warning(f"Skip existing {filetype}: `{filename}`")
+                logf.debug(f"Skip existing {filetype}: `{filename}`")
                 return True
         else:
             return False

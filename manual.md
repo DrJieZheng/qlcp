@@ -4,21 +4,25 @@
 
 QLCP （Quick Light Curve Pipeline）为一个地基望远镜时域观测数据处理管线，输入观测原始数据所在目录，最终输出目标的光变曲线以及相关数据。该软件早期版本已经发表在《天文研究与技术》期刊2023年1期。当前版本为重构后版本。
 
+程序发布在：
+
+- `https://github.com/DrJieZheng/qlcp`
+- `https://gitee.com/drjiezheng/qlcp`
+- PyPI: `qlcp`
+
 ## 1. 安装
 
-```
-pip3 install qlcp-0.24.6-py3-none-any.whl
+```sh
+pip3 install qlcp
 ```
 
 要求：Python版本至少为3.10。需要安装的其他软件包为：`numpy`, `scipy`, `matplotlib`, `astropy`, `PyAstronomy`, `qastutil`, `qmatch`，正常情况下，pip3（或pip）会识别到这些依赖项目并进行自动安装。
-
-未来计划发布到PyPI，则可以直接通过`pip3 install qlcp`进行安装。
 
 ## 2. 运行
 
 以下为最简调用方式：
 
-```
+```py
 import qlcp
 
 qlcp.run(
@@ -31,19 +35,46 @@ qlcp.run(
 
 ## 3. 参数
 
-### 原始数据路径（必选）
+### 参数汇总
+
+```py
+raw_dir:str,
+red_dir:str,
+steps:str="lbfiopwkcdg",
+obj:str=None,
+band:str=None,
+use_bias:str=None,
+use_flat:str|dict=None,
+alt_bias:str=None,
+alt_flat:str|dict=None,
+alt_coord:dict|tuple[str]=None,
+base_img:str=None,
+se_cmd:str="source-extractor",
+aper:float|list[float]=None,
+starxy:list[list[float]]|dict=None,
+ind_tgt:int|list[int]=None,
+ind_ref:int|list[int]=None,
+ind_chk:int|list[int]=None,
+mode:workmode=workmode(workmode.MISS_SKIP+workmode.EXIST_APPEND),
+ini_file:str|tuple[str]|list[str]=None,
+**kwargs
+```
+
+### 原始数据路径 `raw_dir` （必选）
 
 通常为整晚的观测数据的保存位置。程序将自动从其中识别出BIAS、FLAT、科学目标等。
 
-`raw_dir="raw/20240606_85/",`
+`"raw/20240606_85/",`
 
-### 输出路径（必选）
+### 输出路径 `red_dir` （必选）
 
 如果不存在，程序将自动创建目录。本程序所有输出都在该路径内。
 
-`raw_dir="red/20240606_85_red/",`
+`"red/20240606_85_red/",`
 
 注意：请合理安排数据保存位置，尽量让原始数据和处理结果分离，避免误操作。
+
+前两个参数是必选参数，不需要加上参数名。后续参数建议加上参数名。
 
 ### 处理目标 `obj`
 
@@ -61,17 +92,19 @@ qlcp.run(
 
 ### 替代本底 `use_bias` `alt_bias`
 
-如果指定`use_bias`，使用该本底，否则使用当天数据生成。如果当天本底缺失，使用`alt_bias`。
+如果指定`use_bias`，使用该本底，否则使用当天数据生成的本底。如果当天本底缺失，使用`alt_bias`。
 
 `use_bias="usethis/bias_85.fits/",`
 
 `alt_bias="alt/bias_85.fits/",`
 
+优先级： use_bias --> today bias --> alt_bias。
+
 ### 替代平场 `use_flat` `alt_flat`
 
 基本同bias，但平场必须和波段一一对应。
 
-```
+```py
 use_flat={
     "B":"usethis/flat_B_85.fits/",
     "V":"usethis/flat_V_85.fits/",
@@ -79,7 +112,7 @@ use_flat={
 },
 ```
 
-```
+```py
 alt_flat={
     "B":"alt/flat_B_85.fits/",
     "V":"alt/flat_V_85.fits/",
@@ -87,7 +120,7 @@ alt_flat={
 },
 ```
 
-本底和平场的优先级都是： use_bias -- today bias -- alt_bias。
+优先级： use_flat --> today flat --> alt_flat。
 
 ### 坐标 `alt_coord`
 
@@ -97,7 +130,7 @@ alt_flat={
 
 `alt_coord=("12:34:56", "+23:45:67.89"),`
 
-```
+```py
 alt_coord={
     "AAA": ("12:34:56", "+23:45:67.89"),
     "BBB": ("23:56:34", "+56:12:34"),
@@ -118,11 +151,13 @@ alt_coord={
 
 考虑到不同系统、不同版本Source Extractor的命令可能不同，这里提供命令名称，默认为`source-extractor`。
 
-`se_cmd="sex",`
+- `se_cmd="sex",` macOS和早期Linux
+- `se_cmd="sextracfor",` 中期Linux
+- `se_cmd="source-extractor",` 目前Linux
 
 ### 测光孔径 `aper`
 
-本程序输出星等，除AUTO星等外，还根据指定的孔径输出不同星等。本参数可以是单个浮点数，或者浮点数组成的列表，最多可以支持9个孔径。默认为5个像素。
+本程序输出星等，除AUTO星等外，还根据指定的孔径输出不同星等。本参数可以是单个浮点数，或者浮点数组成的列表，最多可以支持9个孔径。如果不提供本参数，会默认以5个像素为孔径进行孔径测光。
 
 `aper=8.0,`
 
@@ -132,30 +167,58 @@ alt_coord={
 
 指定一个列表，每个元素是坐标，顺序为x, y。
 
-如果缺失，程序将自动从图像中寻找，但是目前本功能尚未实现，因此**必须指定**，否则程序跑不下去。
+如果缺失，程序将自动从图像中寻找，由于各波段是独立处理，因此自动找到的目标星、比较星相互可能不同。
 
-```
+```py
 starxy=[
-    ( 927, 1018),         # target
-    ( 855,  920),         # ref1
-    (1255,  861),         # chk
-    (1107, 1349),         # ref2
-    (1161, 1434),         # ref3
-    (1220, 1289),         # ref4
-    ( 688, 1050),         # ref5
+    ( 927, 1018),
+    ( 855,  920),
+    (1107, 1349),
+    (1161, 1434),
+    (1220, 1289),
+    ( 688, 1050),
+    (1255,  861),
 ],
 ```
 
-### 目标星、参考星、检验星 `ind_tgt` `ind_ref` `ind_chk`
+本参数也可以指定字典，关键字为目标名，值是坐标。
 
-给出目标、参考、检验星在列表中的索引，默认目标星是0号，参考星和检验星是1～n-1。
+```py
+starxy={
+    "UYUMa": [
+        ( 927, 1018),
+        ( 855,  920),
+        (1107, 1349),
+        (1161, 1434),
+        (1220, 1289),
+    ],
+    "ACAnd": [
+        (1027,  718),
+        (1220, 1289),
+        ( 688, 1050),
+        (1255,  861),
+    ],
+},
+```
+
+### 目标星、比较星、检验星 `ind_tgt` `ind_ref` `ind_chk`
+
+给出目标、参考、检验星在列表中的索引，默认目标星是0号，比较星和检验星是1～n-1。
 
 注意：和之前程序不同，本程序中目标星可以是多个。
 
-```
+```py
 ind_tgt=0,
-ind_ref=[1,3,4,5,6],
+ind_ref=[1,3,4],
 ind_chk=2,
+```
+
+下标也可以才用字典方式提供，与`starxy`参数相同。
+
+```py
+ind_tgt={"UYUMa": 0, "ACAnd": 3},
+ind_ref={"UYUMa": [1,3,4], "ACAnd": [2,4]},
+ind_chk={"UYUMa": 2},
 ```
 
 ### 文件存在模式 `mode`
@@ -181,6 +244,32 @@ ind_chk=2,
 本程序分为多个步骤，可以选择性执行，部分步骤顺序可以调整，部分步骤之间有依赖关系。
 
 `steps="lbf",`
+
+#### 步骤依赖性
+
+步骤依赖性表示做某个步骤之前应该先做哪一个。如果依赖的前置步骤更换参数重做了，后随步骤也必须相应重做。
+
+```mermaid
+graph LR;
+  L[列表 l] --> O[图像对齐 o];
+  L --> B[本底合并 b];
+  B --> F[平场合并 f];
+  F --> I[图像改正 i];
+  AB(外部本底) --> F;
+  AF(外部平场) --> I;
+  AB --> I;
+  I --> X((...))
+```
+
+```mermaid
+graph LR;
+  X((...)) --> P[测光 p];
+  P --> K[找星 k];
+  AK(人工指定目标) --> C[汇总星表 c];
+  K --> C
+  C --> D[较差 d];
+  D --> G[画图 g];
+```
 
 #### 列表生成 `l`
 
@@ -212,8 +301,8 @@ ind_chk=2,
 
 相关配置参数：
 
-- `flat_limit_low`  =  5000      # 平场中值上下限，过高或者过低的会被丢弃
-- `flat_limit_high` = 50000      # 如果当天实在没有高质量平场，不得不用，请修改
+- `flat_limit_low = 5000` 平场中值上下限，过高或者过低的会被丢弃
+- `flat_limit_high = 50000` 如果当天实在没有高质量平场，不得不用，请修改
 
 #### 图像改正 `i`
 
@@ -225,11 +314,11 @@ ind_chk=2,
 
 相关配置参数：
 
-- `site_tz`  观测站时区，默认值为兴隆站，8
-- `site_lon` 观测站经度 117.57722 (117.34.38)
-- `site_lat` 观测站纬度 40.395833 (+40.23.45)
-- `site_ele` 观测站海拔，960米
-- `border_cut` 边缘裁剪像素个数，默认为10
+- `site_tz = 8`  观测站时区，默认值为兴隆站
+- `site_lon = 117.57722` 观测站经度 (117.34.38)
+- `site_lat = 40.395833` 观测站纬度  (+40.23.45)
+- `site_ele  = 960` 观测站海拔
+- `border_cut = 0` 边缘裁剪像素
 
 本步骤部分处理调用`astropy`、`pyastronomy`、`qastutil`等包。
 
@@ -243,7 +332,7 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 
 相关配置参数：
 
-- `offset_max_dis` 最大距离，单位为像素，默认为250像素，如果图像偏移超过这个值，并且确认图像可用，请加大。
+- `offset_max_dis = 250` 最大距离，单位为像素，如果图像偏移超过这个值，并且确认图像可用，请加大。
 
 本步骤调用`qmatch`包，算法见`2024NewA..11002224Z`。
 
@@ -255,8 +344,8 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 
 相关配置参数：
 
-- `draw_phot` 是否为每幅图像都输出png图像并且标上找到的亮星。默认为 False
-- `draw_phot_err` 误差比该值小的星才会显示在星图上 0.05
+- `draw_phot = False` 是否为每幅图像都输出png图像并且标上找到的亮星
+- `draw_phot_err = 0.05` 误差比该值小的星才会显示在星图上
 
 
 #### 天体位置测量定标 `w`
@@ -265,15 +354,29 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 
 #### 目标选择 `k`
 
-在未指定目标时，自动选择目标。尚未实现，因此starxy参数必须指定。
+如果明确指定要执行本步骤，或者未指定目标时，会自动选择目标。
+
+选择目标的原则是，从图像中选出质量较好的星（误差小于阈值），匹配使用图像中的优质星，并对流量进行粗略对齐。分析每颗星在所有数据中的变化情况，最稳定的星作为候选比较星的，变化较大的星则是候选目标星。要求候选星在所有图像中的缺失率（也就是匹配失败）足够低，候选比较星标准差小且最亮最暗相差较小，如果候选比较星较多，则只选择标准差最低的若干颗。候选目标星要求标准差足够大。对于非掩食阶段的目标星，本算法基本上找不出来，只能靠人工指定。
+
+相关配置参数（注意有些是上限，有些是下限）：
+
+- `pick_err_max = 0.02` 候选星在单幅图像中的AUTO测光误差阈值
+- `pick_bad_max = 0.2` 候选星的缺失率上限。（0.2 = 20%）
+- `pick_var_std = 0.05` 判定为变星的标准差下限
+- `pick_var_rad = 0.5` 变星在图像中的位置上限，不能在图像边缘
+- `pick_ref_n = 20` 最多选择的比较星个数
+- `pick_ref_std = 0.05` 候选比较星的整晚标准差上限
+- `pick_ref_dif = 0.10` 候选比较星的整晚最亮最暗差异上限
 
 #### 星表 `c`
 
-根据starxy参数，生成星表，从每张图中找出对应位置的星的星等和流量，汇总为总仪器星表：`{red}/cata_{obj}_{band}.pkl`，内容为总星表、输入的星位置、孔径列表。同时还生成fits格式星表：`{red}/cata_{obj}_{band}.fits`。
+根据`starxy`参数，生成星表，从每张图中找出对应位置的星的星等和流量，汇总为总仪器星表：`{red}/cata_{obj}_{band}.pkl`，内容为总星表、输入的星位置、孔径列表。同时还生成fits格式星表：`{red}/cata_{obj}_{band}.fits`。
+
+注意：当执行了`k`选星步骤时，`starxy`参数自动无效，使用自动找到的星。
 
 相关配置参数：
 
-- `cali_max_dis` 匹配目标的最大距离，单位为像素，默认为10像素。
+- `match_max_dis = 10` 匹配目标的最大距离，单位为像素
 
 输出的`xxx.pkl`文件，可以用以下方式读取：
 
@@ -281,7 +384,10 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 
 #### 星表较差定标 `d`
 
-利用指定的参考星，对目标星、进行定标。输出为定标后星表：`{red}/cali_{obj}_{band}.pkl`，内容为总星表（来自上一步）, 定标后星表（内容和总星表不重复，行数一致，需要联合使用）, 孔径列表, 输入的星位置, 目标星下标列表, 参考星下标列表, 检验星下标列表。
+利用指定的比较星，对目标星、进行定标。输出为定标后星表：`{red}/cali_{obj}_{band}.pkl`，内容为总星表（来自上一步）, 定标后星表（内容和总星表不重复，行数一致，需要联合使用）, 孔径列表, 输入的星位置, 目标星下标列表, 比较星下标列表, 检验星下标列表。
+
+注意：当执行了`k`选星步骤时，`ind_xxx`参数自动无效，使用自动找到的星。
+
 
 #### 绘图 `g`
 
@@ -300,6 +406,41 @@ pkl文件内容为4个变量，分别是JD、X偏移、Y偏移、文件名。最
 其他参数一律作为配置文件。
 
 可以通过多种渠道提供配置，优先级为：函数参数 - 配置文件 - 默认值。
+
+## 配置参数汇总
+
+【】内表示这一部分参数起作用的步骤代码。
+
+```py
+# 日志【全局】
+self.file_log = logging.DEBUG     # 文件日志等级
+self.scr_log = logging.INFO       # 屏幕显示日志等级
+# 观测站【i】
+self.site_lon = 117.57722         # 观测站经度
+self.site_lat = 40.395833         # 观测站纬度
+self.site_ele = 960               # 观测站海拔
+self.site_tz  = 8                 # 观测站时区
+# 平场采纳【f】
+self.flat_limit_low  =  5000      # 平场图像采纳下限
+self.flat_limit_high = 50000      # 平场图像采纳上限
+# 图像裁剪【i】
+self.border_cut = 0               # 裁边像素
+# 绘制测光结果【p】
+self.draw_phot = False            # 是否画图
+self.draw_phot_err = 0.05         # 标上的星的误差上限
+# 图像对齐【o】
+self.offset_max_dis = 250         # 对齐最远距离
+# 目标匹配【kc】
+self.match_max_dis = 10.0         # 目标匹配最大误差
+# 选星【k】
+self.pick_err_max = 0.02          # 优质星误差上限
+self.pick_bad_max = 0.2           # 整晚的数据缺失率上限
+self.pick_var_std = 0.05          # 变星标准差下限
+self.pick_var_rad = 0.5           # 变星在图像中的区域
+self.pick_ref_n = 20              # 比较星最多个数
+self.pick_ref_std = 0.05          # 比较星整晚标准差上限
+self.pick_ref_dif = 0.10          # 比较星整晚最亮最暗差上限
+```
 
 ## 输出路径结构
 

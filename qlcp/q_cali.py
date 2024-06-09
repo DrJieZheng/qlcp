@@ -56,6 +56,10 @@ def cali(
     cata_pkl = f"{red_dir}/cata_{obj}_{band}.pkl"
     cali_pkl = f"{red_dir}/cali_{obj}_{band}.pkl"
 
+    logf.debug(f"Target: {ind_tgt}")
+    logf.debug(f"Reference: {ind_ref}")
+    logf.debug(f"Check: {ind_chk}")
+
     # check file exists
     if mode.missing(cata_pkl, f"general catalog {obj} {band}", logf):
         return

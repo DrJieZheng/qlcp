@@ -102,10 +102,10 @@ def phot(
         ("Y",        np.float64),
         ("Elong",    np.float32),
         ("FWHM",     np.float32),
-        ("Mag00.0",  np.float32),
-        ("Err00.0",  np.float32),
-        ("Flux00.0", np.float32),
-        ("FErr00.0", np.float32),
+        ("MagAUTO",  np.float32),
+        ("ErrAUTO",  np.float32),
+        ("FluxAUTO", np.float32),
+        ("FErrAUTO", np.float32),
     ] + [
         (f"Mag{a}",  np.float32) for a in apstr] + [
         (f"Err{a}",  np.float32) for a in apstr] + [
@@ -135,8 +135,8 @@ def phot(
         secat = fits.getdata(sef, 2)
         # remove stars at border
         ix = np.where(
-            (bc < secat["X_IMAGE_DBL"] < bc) & (secat["X_IMAGE_DBL"] < nx - bc) &
-            (bc < secat["Y_IMAGE_DBL"] < bc) & (secat["Y_IMAGE_DBL"] < ny - bc) )[0]
+            (bc < secat["X_IMAGE_DBL"]) & (secat["X_IMAGE_DBL"] < nx - bc) &
+            (bc < secat["Y_IMAGE_DBL"]) & (secat["Y_IMAGE_DBL"] < ny - bc) )[0]
 
         ns = len(ix)
         mycat = np.empty(ns, mycatdt)
@@ -145,10 +145,10 @@ def phot(
         mycat["Y"       ] = secat["Y_IMAGE_DBL"] [ix]
         mycat["Elong"   ] = secat["ELONGATION"]  [ix]
         mycat["FWHM"    ] = secat["FWHM_IMAGE"]  [ix]
-        mycat["Mag00.0" ] = secat["MAG_AUTO"]    [ix]
-        mycat["Err00.0" ] = secat["MAGERR_AUTO"] [ix]
-        mycat["Flux00.0"] = secat["FLUX_AUTO"]   [ix]
-        mycat["FErr00.0"] = secat["FLUXERR_AUTO"][ix]
+        mycat["MagAUTO" ] = secat["MAG_AUTO"]    [ix]
+        mycat["ErrAUTO" ] = secat["MAGERR_AUTO"] [ix]
+        mycat["FluxAUTO"] = secat["FLUX_AUTO"]   [ix]
+        mycat["FErrAUTO"] = secat["FLUXERR_AUTO"][ix]
         mycat["Flags"   ] = secat["FLAGS"]       [ix]
         mycat["Alpha"   ] = secat["ALPHA_J2000"] [ix]
         mycat["Delta"   ] = secat["DELTA_J2000"] [ix]
@@ -175,14 +175,14 @@ def phot(
             ff.write(
                 f"{'#Num':>4s}  {'X':>8s} {'Y':>8s}  "
                 f"{'Elong':>5s} {'FWHM':>5s}  "
-                f"{'Mag00.0':>7s} {'Err00.0':>7s}  " +
+                f"{'MagAUTO':>7s} {'ErrAUTO':>7s}  " +
                 "  ".join([f"Mag{a} Err{a}" for a in apstr]) + 
                 f"  {'Flags':>16s}  {'Alpha':>10s} {'Delta':>10s}\n")
             for s in mycat:
                 ff.write((
                     "{s[Num]:4d}  {s[X]:8.3f} {s[Y]:8.3f}  "
                     "{s[Elong]:5.2f} {s[FWHM]:5.2f}  "
-                    "{s[Mag00.0]:7.3f} {s[Err00.0]:7.4f}  " + 
+                    "{s[MagAUTO]:7.3f} {s[ErrAUTO]:7.4f}  " + 
                     "  ".join([f"{{s[Mag{a}]:7.3f}} {{s[Err{a}]:7.4f}}" for a in apstr]) + 
                     "  {s[Flags]:16b}  {s[Alpha]:10.6f} {s[Delta]:+10.6f}\n")
                     .format(s=s))
@@ -191,7 +191,7 @@ def phot(
         if conf.draw_phot:
             img = fits.getdata(scif)
             _, imgm, imgs = sigma_clipped_stats(img, sigma=3)
-            ix = np.where(mycat["Err00.0"] < conf.draw_phot_err)
+            ix = np.where(mycat["ErrAUTO"] < conf.draw_phot_err)
 
             fig, ax = plt.subplots(figsize=(8, 8))
             ax.imshow(img-imgm, vmax=3*imgs, vmin=-3*imgs,

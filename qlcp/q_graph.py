@@ -70,48 +70,48 @@ def graph(
         mchk = cat_cali[f"CaliCheck{a}"]
 
         # compute std of each check star
-        std_chk = np.std(mchk, axis=1)
+        std_chk = np.std(mchk, axis=0)
 
         # the height of mag, use th 2nd larggest and smallest
-        range_tgt = np.empty(n_tgt)
-        range_chk = np.empty(n_chk)
+        half_range_tgt = np.empty(n_tgt)
+        half_range_chk = np.empty(n_chk)
         if nf >= 4:
             for i in range(n_tgt):
                 # ix = np.argsort(mtgt[:, i])
                 # range_tgt[i] = mtgt[ix[-2], i] - mtgt[ix[1], i]
                 _, _, s = sc.sigma_clipped_stats(mtgt[:, i], sigma=3)
-                range_tgt[i] = s * 4
+                half_range_tgt[i] = s * 2
             for i in range(n_chk):
                 # ix = np.argsort(mchk[:, i])
                 # range_chk[i] = mchk[ix[-2], i] - mchk[ix[1], i]
                 _, _, s = sc.sigma_clipped_stats(mchk[:, i], sigma=3)
-                range_chk[i] = s * 4
+                half_range_chk[i] = s * 2
         elif 2 <= nf <= 3:
             for i in range(n_tgt):
                 ix = np.argsort(mtgt[:, i])
-                range_tgt[i] = mtgt[ix[-1], i] - mtgt[ix[0], i]
+                half_range_tgt[i] = (mtgt[ix[-1], i] - mtgt[ix[0], i]) / 2
             for i in range(n_chk):
                 ix = np.argsort(mchk[:, i])
-                range_chk[i] = mchk[ix[-1], i] - mchk[ix[0], i]
+                half_range_chk[i] = (mchk[ix[-1], i] - mchk[ix[0], i]) / 2
         else:
-            range_tgt[:] = curve_space
-            range_chk[:] = curve_space
+            half_range_tgt[:] = curve_space
+            half_range_chk[:] = curve_space
 
         # the base position of each target and check star
         base_tgt = np.zeros(n_tgt)
         for i in range(1, n_tgt):
-            base_tgt[i] = base_tgt[i-1] - (range_tgt[i-1] + range_tgt[i]) / 2 - curve_space
+            base_tgt[i] = base_tgt[i-1] - half_range_tgt[i-1] + half_range_tgt[i] - curve_space
         base_chk = np.zeros(n_chk)
-        base_chk[0] = (range_tgt[0] + range_chk[0]) / 2 + curve_space
+        base_chk[0] = half_range_tgt[0] + half_range_chk[0] + curve_space
         for i in range(1, n_chk):
-            base_chk[i] = base_chk[i-1] + (range_chk[i-1] + range_chk[i]) / 2 + curve_space
+            base_chk[i] = base_chk[i-1] + half_range_chk[i-1] + half_range_chk[i] + curve_space
 
         # the mean of each target and check star
         mean_tgt = np.mean(mtgt, axis=0)
         mean_chk = np.mean(mchk, axis=0)
 
         # the y size of graph
-        ysize = (n_tgt + n_chk) * curve_space + sum(range_tgt) + sum(range_chk)
+        ysize = (n_tgt + n_chk) * curve_space + sum(half_range_tgt) + sum(half_range_chk)
 
         # draw graph
         fig, ax = plt.subplots(figsize=(10, ysize*20))
@@ -129,10 +129,11 @@ def graph(
             # ax.axhline(y=base_chk[i] - range_chk[i]/2, color="k", linestyle=":")
         ax.legend()
         # ax.invert_yaxis()
-        ax.set_ylim(base_chk[-1] + range_chk[-1], base_tgt[-1] - range_tgt[-1] )
+        ax.set_ylim(base_chk[-1] + half_range_chk[-1] + curve_space,
+                    base_tgt[-1] - half_range_tgt[-1] - curve_space)
         ax.set_xlabel("BJD")
         ax.set_ylabel("Relative Magnitude")
         ax.set_title(f"{obj}-{band} (Aperture={a})")
         fig.savefig(f"{red_dir}/lc_{obj}_{band}_AP{a}.png", bbox_inches="tight")
-        plt.close()
+        # plt.close()
         logf.info(f"Light-curve saved as {red_dir}/lc_{obj}_{band}_{a}.png")

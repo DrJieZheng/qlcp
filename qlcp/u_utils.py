@@ -17,6 +17,15 @@ import numpy as np
 # from astropy.time import Time
 
 
+def fnbase(fn:str)->str:
+    """
+    Get base name of a file, without extension.
+    :param fn: filename with or without path
+    :return: base name
+    """
+    return os.path.splitext(os.path.basename(fn))[0]
+
+
 def loadlist(listfile:str, base_path:str="", suffix:str="", separate_folder:bool=False)->list[str]:
     """
     Load file list from list file, add base path and suffix to each filename
@@ -41,7 +50,7 @@ def loadlist(listfile:str, base_path:str="", suffix:str="", separate_folder:bool
         return os.path.basename(base), ext
 
     # the last name of the list, if sperate_folder set, this is the folder name
-    lstname = os.path.basename(os.path.splitext(listfile)[0])
+    lstname = fnbase(listfile)
 
     # load original list
     flst = [f.strip() for f in open(listfile, "r").readlines()]
@@ -80,7 +89,10 @@ def loadlist(listfile:str, base_path:str="", suffix:str="", separate_folder:bool
 
 
 def rm_ix(ix:list[int], *arr):
-    """Remove a[ix] from all a in arr, no return, all action on same array"""
+    """
+    Remove a[ix] from all a in arr
+    return nothing, all action on same array
+    """
     # reverse sort ix
     ix.sort(reverse=True)
     # remove array items

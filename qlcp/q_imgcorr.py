@@ -17,7 +17,7 @@ from PyAstronomy import pyasl
 from qastutil import lst, azalt, airmass
 from .u_conf import config, workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, zenum, uttimestr, hdr_dt, ra2hms, dec2dms
+from .u_utils import loadlist, rm_ix, zenum, uttimestr, hdr_dt, ra2hms, dec2dms, fnbase
 
 
 def imgcorr(
@@ -95,7 +95,7 @@ def imgcorr(
             raise ValueError(f"Dec format wrong (+/-dd:mm:ss.ssss) <{alt_coord[1]}>")
 
     if nf == 0:
-        logf.info(f"SKIP {obj} {band} Nothing")
+        logf.info(f"SKIP {obj} {band} No File")
         return
 
     ###############################################################################
@@ -126,7 +126,7 @@ def imgcorr(
 
     # load images and process
     for i, (rawf, bff) in zenum(raw_list, bf_fits_list):
-        logf.debug(f"Loading {i+1:03d}/{nf:03d}: {rawf:40s}")
+        logf.debug(f"Loading {i+1:03d}/{nf:03d}: {fnbase(rawf)}")
 
         # process data
         dat = (fits.getdata(rawf) - data_bias) / data_flat

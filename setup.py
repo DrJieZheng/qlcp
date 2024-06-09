@@ -5,7 +5,7 @@ with open("readme.md", "r", encoding="utf-8") as ff:
 
 setuptools.setup(
     name='qlcp',
-    version='0.24.606',
+    version='0.24.609',
     author='Dr Jie Zheng & Dr Lin-Qiao Jiang',
     author_email='jiezheng@nao.cas.cn',
     description='Quick Light Curve Pipeline v2024', # short description
@@ -27,6 +27,6 @@ setuptools.setup(
         "Topic :: Scientific/Engineering :: Physics",
         "Topic :: Scientific/Engineering :: Astronomy",
     ],
-    requires=['numpy', 'scipy', 'matplotlib',
+    install_requires=['numpy', 'scipy', 'matplotlib',
               'astropy', 'PyAstronomy', 'qastutil', 'qmatch']
 )
