@@ -11,7 +11,8 @@
 import os
 import numpy as np
 # import astropy.io.fits as fits
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
 from .u_utils import loadlist, pkl_load, pkl_dump
 

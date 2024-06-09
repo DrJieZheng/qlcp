@@ -13,9 +13,10 @@ import numpy as np
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats
 from matplotlib import pyplot as plt
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, zenum
+from .u_utils import loadlist, rm_ix, zenum, meanclip, tqdm_bar
 
 
 def phot(
@@ -23,7 +24,7 @@ def phot(
         red_dir:str,
         obj:str,
         band:str,
-        se_cmd:str="source-extractor",
+        # se_cmd:str="source-extractor",
         aper:float|list[float]=None,
         mode:workmode=workmode(),
 ):
@@ -42,8 +43,18 @@ def phot(
     mode.reset_append(workmode.EXIST_SKIP)
 
     # check se cmd
-    if os.system(f"which {se_cmd} > /dev/null"):
-        raise OSError(f"Wrong Source-Extractor Command: {se_cmd}")
+    # if os.system(f"which {se_cmd} > /dev/null"):
+    #     raise OSError(f"Wrong Source-Extractor Command: {se_cmd}")
+    
+    # check installation of se
+    if os.system(f"which sex > /dev/null") == 0:
+        se_cmd = "sex"
+    elif os.system(f"which source-extractor > /dev/null") == 0:
+        se_cmd = "source-extractor"
+    elif os.system(f"which sextractor > /dev/null") == 0:
+        se_cmd = "sextractor"
+    else:
+        raise OSError("No Source-Extractor Installed")
 
     # list file, and load list
     listfile = f"{red_dir}/lst/{obj}_{band}.lst"
@@ -61,12 +72,14 @@ def phot(
                         suffix="cat.png", separate_folder=True)
 
     # check file missing
+    mode.start_lazy()
     ix = []
     for i, (scif, catf) in zenum(bf_fits_list, cat_fits_list):
-        if mode.missing(scif, "corrected image", logf) or \
-           mode.exists(catf, "catalog", logf):
+        if mode.missing(scif, "corrected image", None) or \
+           mode.exists(catf, "catalog", None):
             ix.append(i)
     # remove missing file
+    mode.end_lazy(logf)
     rm_ix(ix, bf_fits_list, se_fits_list, cat_fits_list, cat_txt_list)
     nf = len(bf_fits_list)
 
@@ -89,11 +102,16 @@ def phot(
         aper = [5.0]
     aper = aper if isinstance(aper, (list, tuple)) else [aper]
     apstr  = [f"{a:04.1f}" for a in aper]
-    apcomma = ",".join([f"{a:.1f}" for a in aper])
     # se command
-    secall = f"{se_cmd} -c {se_sex} -parameters_name " \
-             f"{se_par} {{}} -CATALOG_NAME {{}} "\
-             f"-PHOT_APERTURES {apcomma} 2> /dev/null"
+    se_call = f"{se_cmd} -c {se_sex} {{}} " \
+              f"-parameters_name {se_par} " \
+              f"-CATALOG_NAME {{}} " \
+              f"-PHOT_APERTURES {{}} 2> /dev/null"
+    # se command for fwhm testing
+    se_fwhm = f"{se_cmd} -c {conf.here}bright.sex {{}} " \
+              f"-parameters_name {conf.here}bright.param " \
+              f"-CATALOG_NAME {{}} "\
+              f"2>/dev/null"
 
     # catalog datatypes
     mycatdt = [
@@ -121,15 +139,28 @@ def phot(
     nx = hdr["NAXIS1"]
     ny = hdr["NAXIS2"]
     # border cut as 2 * max aperture size
-    bc = max(aper) * 2
+    bc = max((max(aper) * 2, 20))
 
     # load images and process
+    pbar = tqdm_bar(nf)
     for i, (scif, sef, catf, txtf, pngf) in zenum(
             bf_fits_list, se_fits_list, cat_fits_list, cat_txt_list, cat_png_list):
 
+        # call se for fwhm
+        logf.debug(f"SE {i+1:03d}/{nf:03d}: "+se_fwhm.format(scif, sef))
+        os.system(se_fwhm.format(scif, sef))
+        # load and processor catalog
+        secat = fits.getdata(sef, 2)
+        ix = np.where(
+            (bc < secat["X_IMAGE"]) & (secat["X_IMAGE"] < nx - bc) &
+            (bc < secat["Y_IMAGE"]) & (secat["Y_IMAGE"] < ny - bc) &
+            (secat["MAGERR_AUTO"] < 0.05)) [0]
+        fwhm, _ = meanclip(secat["FWHM_IMAGE"][ix])
+
         # call se
-        logf.debug(f"SE {i+1:03d}/{nf:03d}: "+secall.format(scif, sef))
-        os.system(secall.format(scif, sef))
+        apcomma = ",".join([f"{a:.1f}" if a > 0 else f"{-a*fwhm:.1f}" for a in aper])
+        logf.debug(f"SE {i+1:03d}/{nf:03d}: "+se_call.format(scif, sef, apcomma))
+        os.system(se_call.format(scif, sef, apcomma))
 
         # load and processor catalog
         secat = fits.getdata(sef, 2)
@@ -137,32 +168,34 @@ def phot(
         ix = np.where(
             (bc < secat["X_IMAGE_DBL"]) & (secat["X_IMAGE_DBL"] < nx - bc) &
             (bc < secat["Y_IMAGE_DBL"]) & (secat["Y_IMAGE_DBL"] < ny - bc) )[0]
+        secat = secat[ix]
 
         ns = len(ix)
         mycat = np.empty(ns, mycatdt)
-        mycat["Num"     ] = secat["NUMBER"]      [ix]
-        mycat["X"       ] = secat["X_IMAGE_DBL"] [ix]
-        mycat["Y"       ] = secat["Y_IMAGE_DBL"] [ix]
-        mycat["Elong"   ] = secat["ELONGATION"]  [ix]
-        mycat["FWHM"    ] = secat["FWHM_IMAGE"]  [ix]
-        mycat["MagAUTO" ] = secat["MAG_AUTO"]    [ix]
-        mycat["ErrAUTO" ] = secat["MAGERR_AUTO"] [ix]
-        mycat["FluxAUTO"] = secat["FLUX_AUTO"]   [ix]
-        mycat["FErrAUTO"] = secat["FLUXERR_AUTO"][ix]
-        mycat["Flags"   ] = secat["FLAGS"]       [ix]
-        mycat["Alpha"   ] = secat["ALPHA_J2000"] [ix]
-        mycat["Delta"   ] = secat["DELTA_J2000"] [ix]
+        mycat["Num"     ] = secat["NUMBER"]
+        mycat["X"       ] = secat["X_IMAGE_DBL"] -1
+        mycat["Y"       ] = secat["Y_IMAGE_DBL"] -1
+        mycat["Elong"   ] = secat["ELONGATION"]
+        mycat["FWHM"    ] = secat["FWHM_IMAGE"]
+        mycat["MagAUTO" ] = secat["MAG_AUTO"]
+        mycat["ErrAUTO" ] = secat["MAGERR_AUTO"]
+        mycat["FluxAUTO"] = secat["FLUX_AUTO"]
+        mycat["FErrAUTO"] = secat["FLUXERR_AUTO"]
+        mycat["Flags"   ] = secat["FLAGS"]
+        mycat["Alpha"   ] = secat["ALPHA_J2000"]
+        mycat["Delta"   ] = secat["DELTA_J2000"]
         for k, a in enumerate(apstr):
-            mycat[f"Mag{a}" ] = secat["MAG_APER"]    [ix, k]
-            mycat[f"Err{a}" ] = secat["MAGERR_APER"] [ix, k]
-            mycat[f"Flux{a}"] = secat["FLUX_APER"]   [ix, k]
-            mycat[f"FErr{a}"] = secat["FLUXERR_APER"][ix, k]
+            mycat[f"Mag{a}" ] = secat["MAG_APER"]    [:, k]
+            mycat[f"Err{a}" ] = secat["MAGERR_APER"] [:, k]
+            mycat[f"Flux{a}"] = secat["FLUX_APER"]   [:, k]
+            mycat[f"FErr{a}"] = secat["FLUXERR_APER"][:, k]
 
         hdr = fits.getheader(scif)
         hdr["IMNAXIS1"] = hdr["NAXIS1"]
         hdr["IMNAXIS2"] = hdr["NAXIS2"]
         hdr["APERS"] = ','.join(apstr)
         hdr["NAPER"] = len(apstr)
+        hdr["FWHM"] = fwhm
         for k, a in enumerate(aper):
             hdr[f"APER{k+1:1d}"] = a
 
@@ -186,7 +219,7 @@ def phot(
                     "  ".join([f"{{s[Mag{a}]:7.3f}} {{s[Err{a}]:7.4f}}" for a in apstr]) + 
                     "  {s[Flags]:16b}  {s[Alpha]:10.6f} {s[Delta]:+10.6f}\n")
                     .format(s=s))
-        logf.debug(f"{ns} objects dump to {catf}")
+        logf.debug(f"{ns} objects (FWHM={fwhm:5.2f}) dump to {catf}")
 
         if conf.draw_phot:
             img = fits.getdata(scif)
@@ -200,5 +233,8 @@ def phot(
                 s=10, c="none", marker="o", edgecolors="red")
             ax.set_title(f"{scif} {ns:d}")
             fig.savefig(pngf)
+            plt.close()
+        pbar.update(1)
+    pbar.close()
 
     logf.info(f"{nf:3d} files photometry done")

@@ -49,7 +49,6 @@ alt_bias:str=None,
 alt_flat:str|dict=None,
 alt_coord:dict|tuple[str]=None,
 base_img:str=None,
-se_cmd:str="source-extractor",
 aper:float|list[float]=None,
 starxy:list[list[float]]|dict=None,
 ind_tgt:int|list[int]=None,
@@ -98,7 +97,7 @@ ini_file:str|tuple[str]|list[str]=None,
 
 `alt_bias="alt/bias_85.fits/",`
 
-优先级： use_bias --> today bias --> alt_bias。
+优先级： `use_bias` --> 当天本底 --> `alt_bias`。
 
 ### 替代平场 `use_flat` `alt_flat`
 
@@ -120,7 +119,7 @@ alt_flat={
 },
 ```
 
-优先级： use_flat --> today flat --> alt_flat。
+优先级： `use_flat` --> 当天平场 --> `alt_flat`。
 
 ### 坐标 `alt_coord`
 
@@ -147,21 +146,15 @@ alt_coord={
 
 关联性：后续的`starxy`参数是目标在本图像中坐标。
 
-### Source Extractor命令 `se_cmd`
-
-考虑到不同系统、不同版本Source Extractor的命令可能不同，这里提供命令名称，默认为`source-extractor`。
-
-- `se_cmd="sex",` macOS和早期Linux
-- `se_cmd="sextracfor",` 中期Linux
-- `se_cmd="source-extractor",` 目前Linux
-
 ### 测光孔径 `aper`
 
-本程序输出星等，除AUTO星等外，还根据指定的孔径输出不同星等。本参数可以是单个浮点数，或者浮点数组成的列表，最多可以支持9个孔径。如果不提供本参数，会默认以5个像素为孔径进行孔径测光。
+本程序输出星等，除AUTO星等外，还根据指定的孔径输出不同星等。本参数可以是单个浮点数，或者浮点数组成的列表，最多可以支持19个孔径。孔径可以为负数，表示半高全宽的倍数。如果不提供本参数，会默认以5个像素为孔径进行孔径测光。
+
+图像的半高全宽采用图中质量较好的星的FWHM的中值。
 
 `aper=8.0,`
 
-`aper=(3, 6.0, 9),`
+`aper=(3, 6.0, 9, -1.5, -2.5),`
 
 ### 星坐标 `starxy`
 

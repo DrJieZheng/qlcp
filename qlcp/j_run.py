@@ -8,8 +8,8 @@
 """
 
 
-# import os
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 # from .u_log import init_logger
 from .q_mklist import mklist
 from .q_biascomb import biascomb
@@ -36,7 +36,7 @@ def run(
         alt_flat:str|dict=None,
         alt_coord:dict|tuple[str]=None,
         base_img:str=None,
-        se_cmd:str="source-extractor",
+        # se_cmd:str="source-extractor",
         aper:float|list[float]=None,
         starxy:list[list[float]]|dict=None,
         ind_tgt:int|list[int]=None,
@@ -150,7 +150,8 @@ def run(
                 phot(
                     conf,
                     red_dir, o, b,
-                    se_cmd, aper,
+                    # se_cmd,
+                    aper,
                     mode
                 )
 

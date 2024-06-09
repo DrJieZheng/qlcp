@@ -6,5 +6,4 @@ https://github.com/DrJieZheng/qlcp/
 
 
 from .j_run import run
-from .u_conf import workmode
-
+from .u_workmode import workmode

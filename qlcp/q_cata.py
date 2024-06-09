@@ -12,10 +12,12 @@ import os
 import numpy as np
 import astropy.io.fits as fits
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from qmatch import match2d
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, zenum, pkl_load, pkl_dump, cat2txt, fnbase
+from .u_utils import loadlist, rm_ix, zenum, pkl_load, pkl_dump, cat2txt, fnbase, meanclip
 
 
 def cata(
@@ -66,12 +68,14 @@ def cata(
         return
 
     # check file missing
+    mode.start_lazy()
     ix = []
     for i, (f,) in zenum(cat_fits_list):
-        if mode.missing(f, "image catalog", logf):
+        if mode.missing(f, "image catalog", None):
             ix.append(i)
     # remove missing file
     rm_ix(ix, raw_list, bf_fits_list, cat_fits_list)
+    mode.end_lazy(logf)
     nf = len(cat_fits_list)
 
     # base image, type check, range check, existance check
@@ -132,6 +136,7 @@ def cata(
     ]
     cat_inst = np.empty(nf, cat_inst_dt)
 
+    pbar = tqdm(total=nf, bar_format='{l_bar}{bar}| {n:3d}/{total:3d} [ETA: {remaining}]')
     # load stars from images into the array, by matching x,y
     for i, (catf, rawf) in zenum(cat_fits_list, raw_list):
         # load image info
@@ -164,6 +169,8 @@ def cata(
         cat_inst[i]["FWHM"][ix_s] = cat_i[ix_k]["FWHM"]
         cat_inst[i]["Elong"][ix_s] = cat_i[ix_k]["Elong"]
         logf.debug(f"Add {i+1:3d}/{nf:3d}: {len(cat_i):4d}->{len(ix_k):4d} {fnbase(catf)}")
+        pbar.update(1)
+    pbar.close()
 
     # save catalog to bintable fits, and pickle
     pri_hdu = fits.PrimaryHDU()
@@ -182,9 +189,9 @@ def cata(
         imtitle = os.path.basename(base_img)
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_axes([0.1, 0.1, 0.8, 0.8])
-        imm, ims = np.mean(img), np.std(img)
-        ax.imshow(img-imm, vmin=-0.5*ims, vmax=1*ims, origin="lower", cmap="gray")
-        ax.scatter(starx, stary, marker="o", s=30, c="none", edgecolors="r")
+        imm, ims = meanclip(img)
+        ax.imshow(img-imm, vmin=-1*ims, vmax=5*ims, origin="lower", cmap="gray")
+        ax.scatter(starx-1, stary-1, marker="o", s=50, c="none", edgecolors="r")
         for i, (x, y) in zenum(starx, stary):
             ax.text(x+10, y+10, f"{i:d}", color="r")
         ax.set_title(f"{imtitle} ({len(starx)} stars)")

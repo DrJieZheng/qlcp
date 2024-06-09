@@ -11,7 +11,8 @@
 # import os
 import numpy as np
 import astropy.io.fits as fits
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
 from .u_utils import loadlist, rm_ix, uttimestr
 
@@ -60,10 +61,13 @@ def flatcomb(
     # check file missing
     if mode.missing(bias_fits, "master bias", logf):
         return
+    # check raw file missing
+    mode.start_lazy()
     ix = []
     for i, f in enumerate(flat_list):
-        if mode.missing(f, "raw flat", logf):
+        if mode.missing(f, "raw flat", None):
             ix.append(i)
+    mode.end_lazy(logf)
     # remove missing file
     rm_ix(ix, flat_list)
     nf = len(flat_list)

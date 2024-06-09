@@ -12,9 +12,10 @@ import numpy as np
 import astropy.io.fits as fits
 from qmatch import mean_xy, mean_offset1d
 import matplotlib.pyplot as plt
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, hdr_dt, zenum, str2mjd, pkl_dump, fnbase
+from .u_utils import loadlist, rm_ix, hdr_dt, zenum, str2mjd, pkl_dump, fnbase, tqdm_bar
 
 
 def offset(
@@ -54,11 +55,13 @@ def offset(
         return
 
     # check file missing
+    mode.start_lazy()
     ix = []
     for i, (f,) in zenum(raw_list):
-        if mode.missing(f, "raw image", logf):
+        if mode.missing(f, "raw image", None):
             ix.append(i)
     # remove missing file
+    mode.end_lazy(logf)
     rm_ix(ix, raw_list)
     nf = len(raw_list)
 
@@ -92,6 +95,7 @@ def offset(
     obs_mjd = np.empty(nf)
 
     # load images and process
+    pbar = tqdm_bar(total=nf)
     for i, (rawf,) in zenum(raw_list):
 
         # process data
@@ -107,6 +111,8 @@ def offset(
         logf.debug(f"{i+1:03d}/{nf:03d}: "
                    f"{obs_mjd[i]:12.7f}  {offset_x[i]:+5d} {offset_y[i]:+5d}  "
                    f"{fnbase(rawf)}")
+        pbar.update(1)
+    pbar.close()
 
     # save new fits
     with open(offset_txt, "w") as ff:

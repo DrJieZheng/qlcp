@@ -12,7 +12,8 @@ import os
 import numpy as np
 import astropy.io.fits as fits
 from qmatch import match2d
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
 from .u_utils import loadlist, rm_ix, zenum, pkl_load, pkl_dump, meanclip, fnbase
 
@@ -57,11 +58,13 @@ def pick(
         # return [None]*4
 
     # check file missing
+    mode.start_lazy()
     ix = []
     for f, (f,) in zenum(cat_fits_list):
-        if mode.missing(f, "image catalog", logf):
+        if mode.missing(f, "image catalog", None):
             ix.append(f)
     # remove missing file
+    mode.end_lazy(logf)
     rm_ix(ix, raw_list, cat_fits_list)
     nf = len(cat_fits_list)
 

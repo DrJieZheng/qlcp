@@ -11,7 +11,8 @@
 import os
 import re
 from glob import glob
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
 
 

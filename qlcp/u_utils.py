@@ -13,20 +13,31 @@ import re
 import time
 import pickle
 import numpy as np
+from tqdm import tqdm
 # from scipy import stats as st
 # from astropy.time import Time
 
 
-def fnbase(fn:str)->str:
+def tqdm_bar(total):
+    """genreate a tqdm progress-bar with default format"""
+    return tqdm(total=total, bar_format=
+        '{l_bar}{bar}| {n:3d}/{total:3d} [ETA: {remaining}]')
+
+
+def fnbase(fn:str|list[str])->str:
     """
     Get base name of a file, without extension.
-    :param fn: filename with or without path
+    :param fn: filename with or without path, or a list of filenames
     :return: base name
     """
-    return os.path.splitext(os.path.basename(fn))[0]
+    if isinstance(fn, str):
+        return os.path.splitext(os.path.basename(fn))[0]
+    else:
+        return [os.path.splitext(os.path.basename(f))[0] for f in fn]
 
 
-def loadlist(listfile:str, base_path:str="", suffix:str="", separate_folder:bool=False)->list[str]:
+def loadlist(listfile:str, base_path:str="", suffix:str="", 
+             separate_folder:bool=False)->list[str]:
     """
     Load file list from list file, add base path and suffix to each filename
     :param listfile:
@@ -93,6 +104,8 @@ def rm_ix(ix:list[int], *arr):
     Remove a[ix] from all a in arr
     return nothing, all action on same array
     """
+    # remove duplicate
+    ix = list(set(ix))
     # reverse sort ix
     ix.sort(reverse=True)
     # remove array items
@@ -239,7 +252,7 @@ def pkl_load(filename:str):
     return dat
 
 
-def cat2txt(filename:str, cat:np.ndarray, fmt:dict={}):
+def cat2txt(filename:str, cat:np.ndarray, fmt:dict=None):
     """dump catalog into txt file"""
     # get column names, scalar or array, and array size
     scol = [k for k in cat.dtype.names if len(cat.dtype[k].shape) == 0]

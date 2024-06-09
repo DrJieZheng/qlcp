@@ -11,7 +11,8 @@
 # import os
 import numpy as np
 import astropy.io.fits as fits
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
 from .u_utils import loadlist, rm_ix, uttimestr
 
@@ -48,10 +49,12 @@ def biascomb(
         return
 
     # check file missing
+    mode.start_lazy()
     ix = []
     for i, f in enumerate(bias_list):
-        if mode.missing(f, "raw bias", logf):
+        if mode.missing(f, "raw bias", None):
             ix.append(i)
+    mode.end_lazy(logf)
     # remove missing file
     rm_ix(ix, bias_list)
     nf = len(bias_list)

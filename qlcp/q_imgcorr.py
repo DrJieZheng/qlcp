@@ -15,9 +15,11 @@ import astropy.io.fits as fits
 from astropy import time, coordinates as coord, units as u
 from PyAstronomy import pyasl
 from qastutil import lst, azalt, airmass
-from .u_conf import config, workmode
+from .u_conf import config
+from .u_workmode import workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, zenum, uttimestr, hdr_dt, ra2hms, dec2dms, fnbase
+from .u_utils import loadlist, rm_ix, zenum, uttimestr, \
+    hdr_dt, ra2hms, dec2dms, fnbase, tqdm_bar
 
 
 def imgcorr(
@@ -76,12 +78,15 @@ def imgcorr(
         return
     if mode.missing(flat_fits, f"master flat {band}", logf):
         return
+    # check file exists and missing
+    mode.start_lazy()
     ix = []
     for i, (rawf, bff) in zenum(raw_list, bf_fits_list):
-        if mode.missing(rawf, "raw image", logf) or \
-           mode.exists(bff, "corrected image", logf):
+        if mode.missing(rawf, "raw image", None) or \
+           mode.exists(bff, "corrected image", None):
             ix.append(i)
     # remove missing file
+    mode.end_lazy(logf)
     rm_ix(ix, raw_list, bf_fits_list)
     nf = len(raw_list)
 
@@ -125,9 +130,8 @@ def imgcorr(
         obj = coord.SkyCoord(obj_ra, obj_dec, unit=(u.hour, u.deg), frame="icrs")
 
     # load images and process
+    pbar = tqdm_bar(nf)
     for i, (rawf, bff) in zenum(raw_list, bf_fits_list):
-        logf.debug(f"Loading {i+1:03d}/{nf:03d}: {fnbase(rawf)}")
-
         # process data
         dat = (fits.getdata(rawf) - data_bias) / data_flat
         # border cut
@@ -195,6 +199,8 @@ def imgcorr(
 
         # save new fits
         fits.writeto(bff, data=dat, header=hdr, overwrite=True)
-        logf.debug(f"Writing {i+1:03d}/{nf:03d}: {bff:40s}")
+        logf.debug(f"Writing {i+1:03d}/{nf:03d}: {fnbase(bff)}")
+        pbar.update(1)
+    pbar.close()
 
     logf.info(f"{nf:3d} files corrected")
