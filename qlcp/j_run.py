@@ -21,7 +21,7 @@ from .q_pick import pick
 # from .q_wcs import wcs
 from .q_cata import cata
 from .q_cali import cali
-from .q_graph import graph
+# from .q_graph import graph
 
 
 def run(
@@ -209,9 +209,9 @@ def run(
                 )
 
             # graph plotting
-            if "g" in steps:
-                graph(
-                    conf,
-                    raw_dir, red_dir, o, b,
-                    mode
-                )
+            # if "g" in steps:
+            #     graph(
+            #         conf,
+            #         raw_dir, red_dir, o, b,
+            #         mode
+            #     )

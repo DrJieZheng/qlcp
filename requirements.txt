@@ -1,6 +1,0 @@
-PyAstronomy
-astropy
-qastutil
-qmatch
-matplotlib
-numpy

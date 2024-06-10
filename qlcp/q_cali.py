@@ -95,7 +95,7 @@ def cali(
     n_ref = len(ind_ref)
     n_chk = len(ind_chk)
     # ref string, used in filenames
-    refs = "_".join([f"{i:02d}" for i in ind_ref])
+    refs = "_".join([f"c{i:02d}" for i in ind_ref])
 
     # stru of calibrated results, only results
     cat_cali_dt = [[
@@ -136,13 +136,13 @@ def cali(
 
         # dump text files
         for i, k in enumerate(ind_tgt):
-            with open(f"{aper_dir}/{obj}_{band}_vc{k:02d}_{refs}.txt", "w") as ff:
+            with open(f"{aper_dir}/{obj}_{band}_v{k:02d}_{refs}.txt", "w") as ff:
                 for f in range(nf):
                     ff.write(f"{cat_final['BJD'][f]:15.7f} "
                              f"{cat_cali[f'CaliTarget{a}'][f, i]:6.3f} "
                              f"{cat_cali[f'ErrTarget{a}' ][f, i]:6.3f}\n")
         for i, k in enumerate(ind_chk):
-            with open(f"{aper_dir}/{obj}_{band}_chk{k:02d}_{refs}.txt", "w") as ff:
+            with open(f"{aper_dir}/{obj}_{band}_ch{k:02d}_{refs}.txt", "w") as ff:
                 for f in range(nf):
                     ff.write(f"{cat_final['BJD'][f]:15.7f} "
                              f"{cat_cali[f'CaliCheck{a}'][f, i]:6.3f} "
@@ -150,5 +150,92 @@ def cali(
 
     # save to file
     pkl_dump(cali_pkl, cat_final, cat_cali, apstr, starxy, ind_tgt, ind_ref, ind_chk)
-
     logf.info(f"{n_tgt} target and {n_chk} check calibrated by {n_ref} ref.")
+
+    ###############################################################################
+
+    # draw graph
+    bjd = cat_final["BJD"]
+    # space between each curve
+    curve_space = 0.01
+    # tgt,chk,ref in filename
+    fn_part = "_".join(
+        [f"v{i:02d}" for i in ind_tgt] +
+        [f"ch{i:02d}" for i in ind_chk] +
+        [f"c{i:02d}" for i in ind_ref]
+    )
+    # color and marker
+    cm_tgt = lambda i: ("rs",)[i % 1]
+    cm_chk = lambda i: ("b*", "g*", "m*", "c*")[i % 4]
+
+    # draw graph for each aperture
+    for a in apstr:
+        # load mag and error of specified aperature
+        mtgt = cat_cali[f"CaliTarget{a}"]
+        mchk = cat_cali[f"CaliCheck{a}"]
+
+        # compute std of each check star
+        std_chk = np.nanstd(mchk, axis=0)
+        # the mean of each target and check star
+        mean_tgt = np.empty(n_tgt)
+        mean_chk = np.empty(n_chk)
+
+        # the half height of stars
+        half_range_tgt = np.empty(n_tgt)
+        half_range_chk = np.empty(n_chk)
+        if nf >= 4:
+            for i in range(n_tgt):
+                mean_tgt[i], _, s = sc.sigma_clipped_stats(mtgt[:, i], sigma=3)
+                half_range_tgt[i] = s * 4
+            for i in range(n_chk):
+                mean_chk[i], _, s = sc.sigma_clipped_stats(mchk[:, i], sigma=3)
+                half_range_chk[i] = s * 4
+        elif 2 <= nf <= 3:
+            for i in range(n_tgt):
+                mean_tgt[i] = np.nanmedian(mtgt[:, i])
+                half_range_tgt[i] = (max(mtgt[:, i]) - min(mtgt[:, i])) / 2
+            for i in range(n_chk):
+                mean_chk[i] = np.nanmedian(mchk[:, i])
+                half_range_chk[i] = (max(mchk[:, i]) - min(mchk[:, i])) / 2
+        else:
+            mean_tgt[:] = mtgt[0]
+            mean_chk[:] = mchk[0]
+            half_range_tgt[:] = curve_space
+            half_range_chk[:] = curve_space
+
+        # the base position of each target and check star
+        base_tgt = np.zeros(n_tgt)
+        for i in range(1, n_tgt):
+            base_tgt[i] = base_tgt[i-1] - half_range_tgt[i-1] + half_range_tgt[i] - curve_space
+        base_chk = np.zeros(n_chk)
+        base_chk[0] = half_range_tgt[0] + half_range_chk[0] + curve_space
+        for i in range(1, n_chk):
+            base_chk[i] = base_chk[i-1] + half_range_chk[i-1] + half_range_chk[i] + curve_space
+
+        # the y size of graph
+        ysize = (n_tgt + n_chk) * curve_space + sum(half_range_tgt) + sum(half_range_chk)
+
+        # draw graph
+        fig, ax = plt.subplots(figsize=(10, ysize*20))
+        for i, k in enumerate(ind_tgt):
+            ax.plot(bjd, mtgt[:, i] - mean_tgt[i] + base_tgt[i],
+                    cm_tgt(i), label=f"Target{k:2d}")
+            # ax.axhline(y=base_tgt[i], color="k", linestyle="--")
+            # ax.axhline(y=base_tgt[i] + range_tgt[i]/2, color="k", linestyle=":")
+            # ax.axhline(y=base_tgt[i] - range_tgt[i]/2, color="k", linestyle=":")
+        for i, k in enumerate(ind_chk):
+            ax.plot(bjd, mchk[:, i] - mean_chk[i] + base_chk[i],
+                    cm_chk(i), label=f"Check{k:2d} $\\sigma$={std_chk[i]:6.4f}")
+            # ax.axhline(y=base_chk[i], color="k", linestyle="--")
+            # ax.axhline(y=base_chk[i] + range_chk[i]/2, color="k", linestyle=":")
+            # ax.axhline(y=base_chk[i] - range_chk[i]/2, color="k", linestyle=":")
+        ax.legend()
+        # ax.invert_yaxis()
+        ax.set_ylim(base_chk[-1] + half_range_chk[-1] + curve_space,
+                    base_tgt[-1] - half_range_tgt[-1] - curve_space)
+        ax.set_xlabel("BJD")
+        ax.set_ylabel("Relative Magnitude")
+        ax.set_title(f"{obj}-{band} (Aperture={a})")
+        fig.savefig(f"{red_dir}/lc_{obj}_{band}_AP{a}_{fn_part}.png", bbox_inches="tight")
+        # plt.close()
+        logf.info(f"Light-curve saved for {obj} {band}")
