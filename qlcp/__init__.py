@@ -5,5 +5,7 @@ https://github.com/DrJieZheng/qlcp/
 """
 
 
-from .j_run import run
 from .u_workmode import workmode
+from .j_run import run
+if __name__ != '__main__':
+    pass

@@ -17,7 +17,8 @@ from qmatch import match2d
 from .u_conf import config
 from .u_workmode import workmode
 from .u_log import init_logger
-from .u_utils import loadlist, rm_ix, zenum, pkl_load, pkl_dump, cat2txt, fnbase, meanclip
+from .u_utils import loadlist, rm_ix, zenum, pkl_load, pkl_dump, \
+    cat2txt, fnbase, meanclip, tqdm_bar
 
 
 def cata(
@@ -50,7 +51,7 @@ def cata(
     listfile = f"{red_dir}/lst/{obj}_{band}.lst"
     if mode.missing(listfile, f"{obj} {band} list", logf):
         return
-    raw_list = loadlist(listfile, base_path=raw_dir)
+    # raw_list = loadlist(listfile, base_path=raw_dir)
     bf_fits_list = loadlist(listfile, base_path=red_dir,
                         suffix="bf.fits", separate_folder=True)
     cat_fits_list = loadlist(listfile, base_path=red_dir,
@@ -74,21 +75,23 @@ def cata(
         if mode.missing(f, "image catalog", None):
             ix.append(i)
     # remove missing file
-    rm_ix(ix, raw_list, bf_fits_list, cat_fits_list)
+    rm_ix(ix, bf_fits_list, cat_fits_list)
     mode.end_lazy(logf)
     nf = len(cat_fits_list)
 
     # base image, type check, range check, existance check
     if isinstance(base_img, int):
-        if 0 > base_img or base_img >= len(raw_list):
+        # if int, check range, then use nth image
+        if 0 > base_img or base_img >= nf:
             base_img = 0
-        base_img = raw_list[base_img]
+        base_img = bf_fits_list[base_img]
     elif not isinstance(base_img, str):
-        base_img = raw_list[0]
-    # if external file not found, use 0th
+        # if not int nor str, use 0th
+        base_img = bf_fits_list[0]
     # special, fixed mode
-    if workmode(workmode.MISS_SKIP).missing(base_img, "offset base image", logf):
-        base_img = raw_list[0]
+    elif workmode(workmode.MISS_SKIP).missing(base_img, "offset base image", logf):
+        # if str, is external file, if not found, use 0th
+        base_img = bf_fits_list[0]
 
     if nf == 0:
         logf.info(f"SKIP {obj} {band} No File")
@@ -102,10 +105,11 @@ def cata(
     ns = len(starxy)
 
     # load offset result, and transfer to dict
-    _, offset_x, offset_y, raw_list = pkl_load(offset_pkl)
-    offset_x = dict(zip(raw_list, offset_x))
-    offset_y = dict(zip(raw_list, offset_y))
-    fn_len_max = max([len(f) for f in raw_list])
+    _, offset_x, offset_y, offset_bf_fits_list = pkl_load(offset_pkl)
+    offset_bf_fits_list = [fnbase(f) for f in offset_bf_fits_list]
+    offset_x = dict(zip(offset_bf_fits_list, offset_x))
+    offset_y = dict(zip(offset_bf_fits_list, offset_y))
+    fn_len_max = max(len(f) for f in offset_bf_fits_list)
 
     # aper info, including 0.0
     apstr = ('AUTO,' + fits.getval(cat_fits_list[0], "APERS")).split(",")
@@ -136,13 +140,14 @@ def cata(
     ]
     cat_inst = np.empty(nf, cat_inst_dt)
 
-    pbar = tqdm(total=nf, bar_format='{l_bar}{bar}| {n:3d}/{total:3d} [ETA: {remaining}]')
+    pbar = tqdm_bar(nf, f"CATA {obj} {band}")
     # load stars from images into the array, by matching x,y
-    for i, (catf, rawf) in zenum(cat_fits_list, raw_list):
+    for i, (catf, bff) in zenum(cat_fits_list, bf_fits_list):
+        bbff = fnbase(bff)
         # load image info
         hdr = fits.getheader(catf)
         # carry image global info to catalog
-        cat_inst[i]["File"] = rawf
+        cat_inst[i]["File"] = bbff
         cat_inst[i]["DT"  ] = hdr["DATE-OBS"]
         cat_inst[i]["Band"] = hdr["FILTER"]
         cat_inst[i]["Expt"] = hdr["EXPTIME"]
@@ -153,8 +158,8 @@ def cata(
         # load stars from image
         cat_i = fits.getdata(catf, 1)
         # move to the same coordinate system
-        x_i = cat_i["X"] + offset_x[rawf]
-        y_i = cat_i["Y"] + offset_y[rawf]
+        x_i = cat_i["X"] + offset_x[bbff]
+        y_i = cat_i["Y"] + offset_y[bbff]
         # match to the catalog
         ix_s, ix_k = match2d(starx, stary, x_i, y_i, conf.match_max_dis)
         # dump the matched stars
@@ -168,7 +173,7 @@ def cata(
             cat_inst[i][f"FErr{a}"][ix_s] = cat_i[ix_k][f"FErr{a}"]
         cat_inst[i]["FWHM"][ix_s] = cat_i[ix_k]["FWHM"]
         cat_inst[i]["Elong"][ix_s] = cat_i[ix_k]["Elong"]
-        logf.debug(f"Add {i+1:3d}/{nf:3d}: {len(cat_i):4d}->{len(ix_k):4d} {fnbase(catf)}")
+        logf.debug(f"Add {i+1:3d}/{nf:3d}: {len(cat_i):4d}->{len(ix_k):4d} {bbff}")
         pbar.update(1)
     pbar.close()
 
@@ -180,8 +185,21 @@ def cata(
     pkl_dump(cata_pkl, cat_inst, starxy, apstr)
     logf.info(f"Result save to {cata_pkl}")
 
-    # dumpt catalog to text file
-    cat2txt(cata_txt, cat_inst)
+    # dump catalog to text file
+    # cat2txt(cata_txt, cat_inst)
+
+    # dump catalog to text file, each star in a line
+    with open(cata_txt, "w") as ff:
+        ff.write(f"# {'DateTime':^19s} {'Mag':^6s}{'ExpTime':7s}"
+                 f"{'Band':4s}{'File':^{fn_len_max}s}{'BJD':^15s} "
+                 f"{'Err':^6s} {'FWHM':5s} "
+                 f"{'X':^6s} {'Y':^6s}\n")
+        for c in cat_inst:
+            for s in range(ns):
+                ff.write(f"{c['DT']:21s} {c['MagAUTO'][s]:6.3f} {c['Expt']:5.1f} "
+                         f"{c['Band']:2s} {c['File']:{fn_len_max}s} {c['BJD']:15.7f}  "
+                         f"{c['ErrAUTO'][s]:6.4f} {s:2d} {c['FWHM'][s]:5.2f} "
+                         f"{c['X'][s]:6.1f} {c['Y'][s]:6.1f}\n")
 
     # plot finding chart
     if os.path.isfile(base_img):

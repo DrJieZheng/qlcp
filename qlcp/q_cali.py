@@ -11,6 +11,8 @@
 import os
 import numpy as np
 # import astropy.io.fits as fits
+import astropy.stats.sigma_clipping as sc
+import matplotlib.pyplot as plt
 from .u_conf import config
 from .u_workmode import workmode
 from .u_log import init_logger
@@ -94,6 +96,12 @@ def cali(
     n_tgt = len(ind_tgt)
     n_ref = len(ind_ref)
     n_chk = len(ind_chk)
+
+    # check count of stars, if no, exit
+    if n_ref == 0 or n_ref == 0 or n_tgt == 0:
+        logf.error(f"No target, checker or reference star, exit")
+        return
+
     # ref string, used in filenames
     refs = "_".join([f"c{i:02d}" for i in ind_ref])
 
@@ -150,7 +158,7 @@ def cali(
 
     # save to file
     pkl_dump(cali_pkl, cat_final, cat_cali, apstr, starxy, ind_tgt, ind_ref, ind_chk)
-    logf.info(f"{n_tgt} target and {n_chk} check calibrated by {n_ref} ref.")
+    logf.info(f"{n_tgt} target and {n_chk} check calibrated by {n_ref} ref: {cali_pkl}")
 
     ###############################################################################
 
@@ -165,7 +173,7 @@ def cali(
         [f"c{i:02d}" for i in ind_ref]
     )
     # color and marker
-    cm_tgt = lambda i: ("rs",)[i % 1]
+    cm_tgt = lambda i: ("rs", "ks", "ys")[i % 3]
     cm_chk = lambda i: ("b*", "g*", "m*", "c*")[i % 4]
 
     # draw graph for each aperture
@@ -175,67 +183,50 @@ def cali(
         mchk = cat_cali[f"CaliCheck{a}"]
 
         # compute std of each check star
-        std_chk = np.nanstd(mchk, axis=0)
+        # std_chk = np.nanstd(mchk, axis=0)
         # the mean of each target and check star
         mean_tgt = np.empty(n_tgt)
         mean_chk = np.empty(n_chk)
+        std_tgt = np.empty(n_tgt)
+        std_chk = np.empty(n_chk)
 
         # the half height of stars
-        half_range_tgt = np.empty(n_tgt)
-        half_range_chk = np.empty(n_chk)
-        if nf >= 4:
-            for i in range(n_tgt):
-                mean_tgt[i], _, s = sc.sigma_clipped_stats(mtgt[:, i], sigma=3)
-                half_range_tgt[i] = s * 4
-            for i in range(n_chk):
-                mean_chk[i], _, s = sc.sigma_clipped_stats(mchk[:, i], sigma=3)
-                half_range_chk[i] = s * 4
-        elif 2 <= nf <= 3:
-            for i in range(n_tgt):
-                mean_tgt[i] = np.nanmedian(mtgt[:, i])
-                half_range_tgt[i] = (max(mtgt[:, i]) - min(mtgt[:, i])) / 2
-            for i in range(n_chk):
-                mean_chk[i] = np.nanmedian(mchk[:, i])
-                half_range_chk[i] = (max(mchk[:, i]) - min(mchk[:, i])) / 2
-        else:
-            mean_tgt[:] = mtgt[0]
-            mean_chk[:] = mchk[0]
-            half_range_tgt[:] = curve_space
-            half_range_chk[:] = curve_space
+        for i in range(n_tgt):
+            mean_tgt[i], _, std_tgt[i] = sc.sigma_clipped_stats(mtgt[:, i], sigma=3)
+        for i in range(n_chk):
+            mean_chk[i], _, std_chk[i] = sc.sigma_clipped_stats(mchk[:, i], sigma=3)
+        # half height of each curve
+        half_tgt = 2 * std_tgt
+        half_chk = 4 * std_chk
 
         # the base position of each target and check star
         base_tgt = np.zeros(n_tgt)
         for i in range(1, n_tgt):
-            base_tgt[i] = base_tgt[i-1] - half_range_tgt[i-1] + half_range_tgt[i] - curve_space
+            base_tgt[i] = base_tgt[i-1] - half_tgt[i-1] - half_tgt[i] - curve_space
         base_chk = np.zeros(n_chk)
-        base_chk[0] = half_range_tgt[0] + half_range_chk[0] + curve_space
+        base_chk[0] = half_tgt[0] + half_chk[0] + curve_space
         for i in range(1, n_chk):
-            base_chk[i] = base_chk[i-1] + half_range_chk[i-1] + half_range_chk[i] + curve_space
+            base_chk[i] = base_chk[i-1] + half_chk[i-1] + half_chk[i] + curve_space
 
         # the y size of graph
-        ysize = (n_tgt + n_chk) * curve_space + sum(half_range_tgt) + sum(half_range_chk)
+        ysize = (n_tgt + n_chk) * curve_space + 2*sum(half_tgt) + 2*sum(half_chk)
 
         # draw graph
-        fig, ax = plt.subplots(figsize=(10, ysize*20))
+        fig, ax = plt.subplots(figsize=(20, 15)) # min(ysize*20, 40)
         for i, k in enumerate(ind_tgt):
             ax.plot(bjd, mtgt[:, i] - mean_tgt[i] + base_tgt[i],
                     cm_tgt(i), label=f"Target{k:2d}")
-            # ax.axhline(y=base_tgt[i], color="k", linestyle="--")
-            # ax.axhline(y=base_tgt[i] + range_tgt[i]/2, color="k", linestyle=":")
-            # ax.axhline(y=base_tgt[i] - range_tgt[i]/2, color="k", linestyle=":")
         for i, k in enumerate(ind_chk):
             ax.plot(bjd, mchk[:, i] - mean_chk[i] + base_chk[i],
                     cm_chk(i), label=f"Check{k:2d} $\\sigma$={std_chk[i]:6.4f}")
-            # ax.axhline(y=base_chk[i], color="k", linestyle="--")
-            # ax.axhline(y=base_chk[i] + range_chk[i]/2, color="k", linestyle=":")
-            # ax.axhline(y=base_chk[i] - range_chk[i]/2, color="k", linestyle=":")
         ax.legend()
-        # ax.invert_yaxis()
-        ax.set_ylim(base_chk[-1] + half_range_chk[-1] + curve_space,
-                    base_tgt[-1] - half_range_tgt[-1] - curve_space)
+        ax.invert_yaxis()
+        # ax.set_ylim(base_chk[-1] + half_chk[-1] + curve_space,
+        #             base_tgt[-1] - half_tgt[-1] - curve_space)
         ax.set_xlabel("BJD")
         ax.set_ylabel("Relative Magnitude")
         ax.set_title(f"{obj}-{band} (Aperture={a})")
         fig.savefig(f"{red_dir}/lc_{obj}_{band}_AP{a}_{fn_part}.png", bbox_inches="tight")
-        # plt.close()
-        logf.info(f"Light-curve saved for {obj} {band}")
+        if a != "AUTO":
+            plt.close()
+        logf.info(f"Light-curve saved {obj} {band} {a}")

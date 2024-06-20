@@ -21,13 +21,17 @@ from .q_pick import pick
 # from .q_wcs import wcs
 from .q_cata import cata
 from .q_cali import cali
-# from .q_graph import graph
+
+
+# def testcall(*arg, **kwargs) -> None:
+#     """A test call for debug"""
+#     print("testcall", arg, kwargs)
 
 
 def run(
         raw_dir:str,
         red_dir:str,
-        steps:str="lbfiopwkcdg",
+        steps:str="lbfiopcdg",
         obj:str=None,
         band:str=None,
         use_bias:str=None,
@@ -35,8 +39,7 @@ def run(
         alt_bias:str=None,
         alt_flat:str|dict=None,
         alt_coord:dict|tuple[str]=None,
-        base_img:str=None,
-        # se_cmd:str="source-extractor",
+        base_img:str|dict=None,
         aper:float|list[float]=None,
         starxy:list[list[float]]|dict=None,
         ind_tgt:int|list[int]=None,
@@ -57,7 +60,7 @@ def run(
         i = Image correct
         o = Offset
         p = find stars and Photometry
-        w = Ecs
+        w = Wcs
         k = picK ref stars
         c = Catalog
         d = Differential flux
@@ -73,7 +76,6 @@ def run(
                       if dict, key is object name and value is coordination
                       if tuple, 2 str for RA (hms) and Dec (dms)
     :param base_img: if none, use image 0, int as index, or str as filename
-    :param se_cmd: command of source-extractor, if empty or None, use sep package
     :param aper: one or multi aperture(s) for photometry
     :param starxy: a list contains xy of star, if not, auto pick
                  if dict, key is object name and value is list of xy
@@ -83,6 +85,9 @@ def run(
     :param mode: working mode for file exists or missing
     :param ini_file: extra ini file(s)
     :param kwargs: extra config
+    for alt_flat and use_flat, if dict, key is band and value is flat file name
+    for alt_coord, base_img, starxy, ind_tgt, ind_ref, and ind_chk, 
+        if dict, key is object name
     """
 
     # make config
@@ -107,19 +112,18 @@ def run(
 
     # Flat combine
     if "f" in steps:
-        for b in list_all:  # each band
-            if "flat" in list_all[b]:
-                flatcomb(
-                    conf,
-                    raw_dir, red_dir, b,
-                    use_bias, alt_bias,
-                    mode
-                )
+        for b in list_all["flat"]:  # each band
+            flatcomb(
+                conf,
+                raw_dir, red_dir, b,
+                use_bias, alt_bias,
+                mode
+            )
 
-    for b in list_all:  # each band
-        for o in list_all[b]: # each object
-            if o in ("bias", "flat"):
-                continue
+    for o in list_all: # each object
+        if o in ("bias", "flat"):
+            continue
+        for b in list_all[o]:  # each band
 
             # Image correction
             if "i" in steps:
@@ -150,7 +154,6 @@ def run(
                 phot(
                     conf,
                     red_dir, o, b,
-                    # se_cmd,
                     aper,
                     mode
                 )
@@ -163,14 +166,24 @@ def run(
             #         mode
             #     )
 
+    # finish basic operations for all objects first
+    for o in list_all: # each object
+        if o in ("bias", "flat"):
+            continue
+        for b in list_all[o]:  # each band
+            bm = base_img.get(o, None) if isinstance(base_img, dict) else base_img
+
             # picK target, ref, check stars
             # if k specified, or c required but starxy not given or only one
             # here k means pick or not
-            k = "k" in steps or ("c" in steps and (not starxy or len(starxy) == 1))
+            k = "k" in steps  or "K" in steps or \
+                ("c" in steps and (not starxy or len(starxy) == 1))
             if k:
                 pickxy, picktgt, pickref, pickchk = pick(
                     conf,
                     raw_dir, red_dir, o, b,
+                    bm,
+                    "K" in steps,  # load last pick
                     mode
                 )
             else:
@@ -187,7 +200,7 @@ def run(
                     conf,
                     raw_dir, red_dir, o, b,
                     xy,
-                    base_img,
+                    bm,
                     mode
                 )
 
@@ -207,11 +220,3 @@ def run(
                     i_t, i_r, i_c,
                     mode
                 )
-
-            # graph plotting
-            # if "g" in steps:
-            #     graph(
-            #         conf,
-            #         raw_dir, red_dir, o, b,
-            #         mode
-            #     )

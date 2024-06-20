@@ -130,7 +130,7 @@ def imgcorr(
         obj = coord.SkyCoord(obj_ra, obj_dec, unit=(u.hour, u.deg), frame="icrs")
 
     # load images and process
-    pbar = tqdm_bar(nf)
+    pbar = tqdm_bar(nf, f"CORR {obj} {band}")
     for i, (rawf, bff) in zenum(raw_list, bf_fits_list):
         # process data
         dat = (fits.getdata(rawf) - data_bias) / data_flat
@@ -150,7 +150,7 @@ def imgcorr(
 
         # center of the exposure
         expt = hdr.get("EXPTIME", 0.0)
-        obs_jd += expt / 2 / 86400
+        obs_jd += time.TimeDelta(expt / 2, format="sec")
 
         obs_mjd = obs_jd.mjd
         obs_lst = coord.Angle(lst(obs_mjd, site.lon.deg), u.hour)

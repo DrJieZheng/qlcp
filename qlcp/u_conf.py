@@ -30,52 +30,54 @@ class config:
         # path of the program
         self.here = os.path.realpath(os.path.dirname(__file__)) + "/"   # program path
         # default log level
-        self.file_log = logging.DEBUG     # log level for file
-        self.scr_log = logging.INFO       # log level for screen
+        self.file_log = logging.DEBUG           # log level for file
+        self.scr_log = logging.INFO             # log level for screen
         # observatory
-        self.site_lon = 117.57722         # longitude 117.34.38
-        self.site_lat = 40.395833         # latitude +40.23.45
-        self.site_ele = 960               # elevation above sea level
-        self.site_tz  = 8                 # timezone
+        self.site_lon           = 117.57722     # longitude 117.34.38
+        self.site_lat           = 40.395833     # latitude +40.23.45
+        self.site_ele           = 960           # elevation above sea level
+        self.site_tz            = 8             # timezone
         # flat level limit
-        self.flat_limit_low  =  5000      # low limit for flat level
-        self.flat_limit_high = 50000      # high limit for flat level
+        self.flat_limit_low     =  5000         # low limit for flat level
+        self.flat_limit_high    = 50000         # high limit for flat level
         # image correction
-        self.border_cut = 0               # cut border pixels
+        self.border_cut         = 0             # cut border pixels
         # draw phot result
-        self.draw_phot = False            # draw phot result or not
-        self.draw_phot_err = 0.05         # max error of stars to be drawn
+        self.draw_phot          = False         # draw phot result or not
+        self.draw_phot_err      = 0.05          # max error of stars to be drawn
         # offset max distance
-        self.offset_max_dis = 250         # max distance for offset
+        self.offset_max_dis     = 250           # max distance for offset
         # max matching distance
-        self.match_max_dis = 10.0         # max distance for object matching
+        self.match_max_dis      = 10.0          # max distance for object matching
         # star pick
-        self.pick_err_max = 0.02          # max error for pick stars
-        self.pick_bad_max = 0.2           # factor of bad stars
-        self.pick_var_std = 0.05          # std of the variance stars
-        self.pick_var_rad = 0.5           # radius of the variance stars
-        self.pick_ref_n = 20              # number of reference stars
-        self.pick_ref_std = 0.05          # std of the reference stars
-        self.pick_ref_dif = 0.10          # max-min limit of the reference stars
+        self.pick_err_max       = 0.10          # max error for pick stars
+        self.pick_star_n        = 100           # max number of stars
+        self.pick_bad_max       = 0.2           # factor of bad stars
+        self.pick_var_n         = 5             # max number of variable stars
+        self.pick_var_std       = 0.10          # std of the variance stars
+        self.pick_var_rad       = 0.5           # radius of the variance stars
+        self.pick_ref_n         = 10            # max snumber of reference stars
+        self.pick_ref_std       = 0.02          # std of the reference stars
+        self.pick_ref_dif       = 0.10          # max-min limit of the reference stars
         # wcs setting
-        self.wcs_max_err = 0.05           # mag-err limit for choose good stars
-        self.wcs_max_n = 1000             # brightest n stars will be used
-        self.wcs_min_n = 20               # brightest n stars will be used
-        self.wcs_max_dis = 10             # pixels for last matching
+        self.wcs_max_err        = 0.05          # mag-err limit for choose good stars
+        self.wcs_max_n          = 1000          # brightest n stars will be used
+        self.wcs_min_n          = 20            # brightest n stars will be used
+        self.wcs_max_dis        = 10            # pixels for last matching
         # flux cali setting
-        self.flux_max_err = 0.025         # mag-err limit for choose calibrating stars
-        self.flux_max_n = 1000            # n of the brightest stars will be used
-        self.flux_max_dis = 10.0          # pixels for matching image and ref stars
-        self.flux_chk_res = True          # plot residual check image or not
+        self.flux_max_err       = 0.025         # mag-err limit for choose calibrating stars
+        self.flux_max_n         = 1000          # n of the brightest stars will be used
+        self.flux_max_dis       = 10.0          # pixels for matching image and ref stars
+        self.flux_chk_res       = True          # plot residual check image or not
 
         # filename pattern
         self.patterns = [
             # UYUMa-0003I.fit  bias-0001.fits
-            "(?P<obj>[^-_]*)-(?P<sn>[0-9]{3,6})(?P<band>[a-zA-Z]{0,1}).fit(s{0,1})",
+            "(?P<date>[0-9]{0,8})(?P<obj>[^-_]*)-(?P<sn>[0-9]{3,6})(?P<band>[a-zA-Z]{0,1}).fit(s{0,1})",
             # flat_R_003.fit TCrB_V_001.fits
-            "(?P<obj>[^-_]*)_(?P<band>[a-zA-Z]{0,1})(_{0,1})(?P<sn>[0-9]{3,6}).fit(s{0,1})",
+            "(?P<date>[0-9]{0,8})(?P<obj>[^-_]*)_(?P<band>[a-zA-Z]{0,1})(_{0,1})(?P<sn>[0-9]{3,6}).fit(s{0,1})",
             # flat_R_1_R_001.fit // for auto flat only
-            "(?P<obj>flat)_(?P<band>[a-zA-Z])_(?P<sn>[0-9]{1,2})_[a-zA-Z]_([0-9]{3,6}).fit(s{0,1})"
+            "(?P<date>[0-9]{0,8})(?P<obj>flat)_(?P<band>[a-zA-Z])_(?P<sn>[0-9]{1,2})_[a-zA-Z]_([0-9]{3,6}).fit(s{0,1})"
         ]
 
         # load external ini file

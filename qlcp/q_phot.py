@@ -97,11 +97,13 @@ def phot(
     else:
         se_sex = conf.here + "default.sex"
     se_par = conf.here + "default.param"
+    # remark any aperture providec by caller
+    no_aper = not aper
     # apertures
     if not aper:
         aper = [5.0]
     aper = aper if isinstance(aper, (list, tuple)) else [aper]
-    apstr  = [f"{a:04.1f}" for a in aper]
+    apstr  = [] if no_aper else [f"{a:04.1f}" for a in aper]
     # se command
     se_call = f"{se_cmd} -c {se_sex} {{}} " \
               f"-parameters_name {se_par} " \
@@ -142,7 +144,7 @@ def phot(
     bc = max((max(aper) * 2, 20))
 
     # load images and process
-    pbar = tqdm_bar(nf)
+    pbar = tqdm_bar(nf, f"PHOT {obj} {band}")
     for i, (scif, sef, catf, txtf, pngf) in zenum(
             bf_fits_list, se_fits_list, cat_fits_list, cat_txt_list, cat_png_list):
 
@@ -196,8 +198,8 @@ def phot(
         hdr["APERS"] = ','.join(apstr)
         hdr["NAPER"] = len(apstr)
         hdr["FWHM"] = fwhm
-        for k, a in enumerate(aper):
-            hdr[f"APER{k+1:1d}"] = a
+        for k, a in enumerate(apstr):
+            hdr[f"APER{k+1:1d}"] = float(a)
 
         pri_hdu = fits.PrimaryHDU(header=hdr, data=None)
         cat_hdu = fits.BinTableHDU(data=mycat)

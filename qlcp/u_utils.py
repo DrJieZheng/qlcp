@@ -18,10 +18,10 @@ from tqdm import tqdm
 # from astropy.time import Time
 
 
-def tqdm_bar(total):
+def tqdm_bar(total, task):
     """genreate a tqdm progress-bar with default format"""
     return tqdm(total=total, bar_format=
-        '{l_bar}{bar}| {n:3d}/{total:3d} [ETA: {remaining}]')
+        task + ':{l_bar}{bar}| {n:3d}/{total:3d} [{elapsed}/{remaining}]')
 
 
 def fnbase(fn:str|list[str])->str:

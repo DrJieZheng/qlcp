@@ -45,7 +45,8 @@ def offset(
     listfile = f"{red_dir}/lst/{obj}_{band}.lst"
     if mode.missing(listfile, f"{obj} {band} list", logf):
         return
-    raw_list = loadlist(listfile, base_path=raw_dir)
+    bf_fits_list = loadlist(listfile, base_path=red_dir,
+                        suffix="bf.fits", separate_folder=True)
     offset_pkl = f"{red_dir}/offset_{obj}_{band}.pkl"
     offset_txt = f"{red_dir}/offset_{obj}_{band}.txt"
     offset_png = f"{red_dir}/offset_{obj}_{band}.png"
@@ -57,13 +58,13 @@ def offset(
     # check file missing
     mode.start_lazy()
     ix = []
-    for i, (f,) in zenum(raw_list):
-        if mode.missing(f, "raw image", None):
+    for i, (f,) in zenum(bf_fits_list):
+        if mode.missing(f, "corrected image", None):
             ix.append(i)
     # remove missing file
     mode.end_lazy(logf)
-    rm_ix(ix, raw_list)
-    nf = len(raw_list)
+    rm_ix(ix, bf_fits_list)
+    nf = len(bf_fits_list)
 
     if nf == 0:
         logf.info(f"SKIP {obj} {band} Nothing")
@@ -71,15 +72,15 @@ def offset(
 
     # base image, type check, range check, existance check
     if isinstance(base_img, int):
-        if 0 > base_img or base_img >= len(raw_list):
+        if 0 > base_img or base_img >= nf:
             base_img = 0
-        base_img = raw_list[base_img]
+        base_img = bf_fits_list[base_img]
     elif not isinstance(base_img, str):
-        base_img = raw_list[0]
+        base_img = bf_fits_list[0]
     # if external file not found, use 0th
     # special, fixed mode
     if workmode(workmode.MISS_SKIP).missing(base_img, "offset base image", logf):
-        base_img = raw_list[0]
+        base_img = bf_fits_list[0]
 
     ###############################################################################
 
@@ -95,30 +96,31 @@ def offset(
     obs_mjd = np.empty(nf)
 
     # load images and process
-    pbar = tqdm_bar(total=nf)
-    for i, (rawf,) in zenum(raw_list):
+    pbar = tqdm_bar(nf, f"OFFSET {obj} {band}")
+    for i, (bff,) in zenum(bf_fits_list):
 
         # process data
-        raw_x, raw_y = mean_xy(fits.getdata(rawf))
-        offset_x[i] = int(mean_offset1d(base_x, raw_x, max_d=conf.offset_max_dis))
-        offset_y[i] = int(mean_offset1d(base_y, raw_y, max_d=conf.offset_max_dis))
+        bf_x, bf_y = mean_xy(fits.getdata(bff))
+        offset_x[i] = int(mean_offset1d(base_x, bf_x, max_d=conf.offset_max_dis))
+        offset_y[i] = int(mean_offset1d(base_y, bf_y, max_d=conf.offset_max_dis))
 
         # mjd of obs
-        hdr = fits.getheader(rawf)
-        obs_dt = hdr_dt(hdr)[:19]
-        obs_mjd[i] = str2mjd(obs_dt) + hdr.get("EXPTIME", 0.0) / 2 / 86400
+        # hdr = fits.getheader(bff)
+        # obs_dt = hdr_dt(hdr)[:19]
+        # obs_mjd[i] = str2mjd(obs_dt) + hdr.get("EXPTIME", 0.0) / 2 / 86400
+        obs_mjd[i] = fits.getval(bff, "MJD")
 
         logf.debug(f"{i+1:03d}/{nf:03d}: "
                    f"{obs_mjd[i]:12.7f}  {offset_x[i]:+5d} {offset_y[i]:+5d}  "
-                   f"{fnbase(rawf)}")
+                   f"{fnbase(bff)}")
         pbar.update(1)
     pbar.close()
 
     # save new fits
     with open(offset_txt, "w") as ff:
-        for d, x, y, rawf in zip(obs_mjd, offset_x, offset_y, raw_list):
-            ff.write(f"{d:12.7f}  {x:+5d} {y:+5d}  {rawf}\n")
-    pkl_dump(offset_pkl, obs_mjd, offset_x, offset_y, raw_list)
+        for d, x, y, bff in zip(obs_mjd, offset_x, offset_y, bf_fits_list):
+            ff.write(f"{d:12.7f}  {x:+5d} {y:+5d}  {bff}\n")
+    pkl_dump(offset_pkl, obs_mjd, offset_x, offset_y, bf_fits_list)
     logf.debug(f"Writing {offset_pkl}")
 
     # draw offset figure

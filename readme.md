@@ -4,6 +4,8 @@
 
 QLCP is a quick, easy-to-use pipeline for processing light curves from images observed by any ground based telescope.
 
+By Dr Jie Zheng (NAOC) & Prof/Dr Lin-Qiao Jiang (LSNU)
+
 ## Installation:
 
 QLCP is available on PyPI and can be installed with pip:
@@ -25,7 +27,7 @@ redd = '/path/to/reduced/data/'
 qlcp.run(
     rawd,                   # raw data directory
     redd,                   # reduced data directory
-    steps='lbfoipwkcdg',    # steps to do
+    steps='lbfiopwkcd',    # steps to do
     aper=[3,5,7,9],         # apertures, up to 9 apertures
     starxy=[                # star positions on base image
         (927,1018),         # target
@@ -43,7 +45,6 @@ qlcp.run(
                             # how to handle overwrite and missing files
                             # The following recover the settings in config
     offset_max_dis=100,     # max offset for offset
-    se_cmd='sex',           # command to run SExtractor
     cali_max_dis=20.0,      # max distance for identify calibration stars
     scr_log=logging.DEBUG,  # logging level
     draw_phot=False,        # draw photometry result or not
