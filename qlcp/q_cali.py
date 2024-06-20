@@ -99,7 +99,7 @@ def cali(
 
     # check count of stars, if no, exit
     if n_ref == 0 or n_ref == 0 or n_tgt == 0:
-        logf.error(f"No target, checker or reference star, exit")
+        logf.error(f"SKIP {obj} {band} No target, checker or reference star")
         return
 
     # ref string, used in filenames

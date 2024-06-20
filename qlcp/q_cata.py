@@ -94,7 +94,7 @@ def cata(
         base_img = bf_fits_list[0]
 
     if nf == 0:
-        logf.info(f"SKIP {obj} {band} No File")
+        logf.info(f"SKIP {obj} {band} No Star")
 
     ###############################################################################
 
@@ -103,6 +103,10 @@ def cata(
     starx = starxy[:, 0]
     stary = starxy[:, 1]
     ns = len(starxy)
+
+    # exit if no star
+    if ns == 0:
+        logf.error(f"SKIP {obj} {band} No Star")
 
     # load offset result, and transfer to dict
     _, offset_x, offset_y, offset_bf_fits_list = pkl_load(offset_pkl)
