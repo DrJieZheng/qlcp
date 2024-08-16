@@ -88,7 +88,7 @@ def flatcomb(
     data_cube = np.empty((nf, ny, nx), dtype=np.float32)
     for i, f in enumerate(flat_list):
         data_tmp = fits.getdata(f) - data_bias
-        data_tmp_med = np.median(data_tmp)
+        data_tmp_med = np.mean(data_tmp)
         # check flat level, if too low or too high, discard
         if conf.flat_limit_low < data_tmp_med < conf.flat_limit_high:
             data_cube[i, :, :] = data_tmp / data_tmp_med

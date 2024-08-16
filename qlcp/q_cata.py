@@ -115,8 +115,10 @@ def cata(
     offset_y = dict(zip(offset_bf_fits_list, offset_y))
     fn_len_max = max(len(f) for f in offset_bf_fits_list)
 
-    # aper info, including 0.0
-    apstr = ('AUTO,' + fits.getval(cat_fits_list[0], "APERS")).split(",")
+    # aper info, including AUTO, incase nothing in apers
+    apstr = fits.getval(cat_fits_list[0], "APERS")
+    apstr = "AUTO," + apstr if apstr.strip() else "AUTO"
+    apstr = apstr.split(",")
 
     # init the catalog structure
     cat_inst_magflux_dt = [[
@@ -143,6 +145,18 @@ def cata(
         ("Flags",    np.uint16 , (ns,)),
     ]
     cat_inst = np.empty(nf, cat_inst_dt)
+    # set unmatched default
+    cat_inst["ID"] = -1
+    cat_inst["X"] = np.nan
+    cat_inst["Y"] = np.nan
+    cat_inst["FWHM"] = np.nan
+    cat_inst["Elong"] = np.nan
+    for a in apstr:
+        cat_inst[f"Mag{a}" ] = np.nan
+        cat_inst[f"Err{a}" ] = np.nan
+        cat_inst[f"Flux{a}"] = np.nan
+        cat_inst[f"FErr{a}"] = np.nan
+    
 
     pbar = tqdm_bar(nf, f"CATA {obj} {band}")
     # load stars from images into the array, by matching x,y

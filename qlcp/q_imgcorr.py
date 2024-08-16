@@ -13,7 +13,7 @@ import re
 # import numpy as np
 import astropy.io.fits as fits
 from astropy import time, coordinates as coord, units as u
-from PyAstronomy import pyasl
+# from PyAstronomy import pyasl
 from qastutil import lst, azalt, airmass
 from .u_conf import config
 from .u_workmode import workmode
@@ -125,9 +125,9 @@ def imgcorr(
     obj_dec = alt_coord[1] if alt_coord else hdr.get("DEC", None)
     logf.debug(f"Coord({obj_ra} {obj_dec}) from {'PARAM' if alt_coord else raw_list[0]}")
     if obj_ra is None or obj_dec is None:
-        obj = None
+        objcoord = None
     else:
-        obj = coord.SkyCoord(obj_ra, obj_dec, unit=(u.hour, u.deg), frame="icrs")
+        objcoord = coord.SkyCoord(obj_ra, obj_dec, unit=(u.hour, u.deg), frame="icrs")
 
     # load images and process
     pbar = tqdm_bar(nf, f"CORR {obj} {band}")
@@ -154,15 +154,17 @@ def imgcorr(
 
         obs_mjd = obs_jd.mjd
         obs_lst = coord.Angle(lst(obs_mjd, site.lon.deg), u.hour)
-        if obj:
+        if objcoord:
             # jd + ra/dec to bjd, hjd
-            ltt_bary = obs_jd.light_travel_time(obj)
+            ltt_bary = obs_jd.light_travel_time(objcoord, kind="barycentric")
             obs_bjd = (obs_jd.tdb + ltt_bary).jd
-            obs_hjd = pyasl.helio_jd(obs_jd.jd - 2.4e6, obj.ra.deg, obj.dec.deg) + 2.4e6
+            # obs_hjd = pyasl.helio_jd(obs_jd.jd - 2.4e6, objcoord.ra.deg, objcoord.dec.deg) + 2.4e6
+            ltt_helio = obs_jd.light_travel_time(objcoord, kind="heliocentric")
+            obs_hjd = obs_jd.jd + ltt_helio.jd
             # az, alt, airmass
-            obs_ha = obs_lst - obj.ra
-            obs_az, obs_alt = azalt(site.lat.deg, obs_lst.hour, obj.ra.deg, obj.dec.deg)
-            obs_am = airmass(site.lat.deg, obs_lst.hour, obj.ra.deg, obj.dec.deg)
+            obs_ha = obs_lst - objcoord.ra
+            obs_az, obs_alt = azalt(site.lat.deg, obs_lst.hour, objcoord.ra.deg, objcoord.dec.deg)
+            obs_am = airmass(site.lat.deg, obs_lst.hour, objcoord.ra.deg, objcoord.dec.deg)
         else:
             obs_bjd = obs_hjd = obs_jd
             obs_az = obs_alt = obs_am = 0.0
@@ -170,8 +172,8 @@ def imgcorr(
 
         # add ra, dec, lst, jd, mjd, bjd, hjd, az, alt,
         hdr.update({
-            "RA": ra2hms(obj.ra),
-            "DEC": dec2dms(obj.dec),
+            "RA": ra2hms(objcoord.ra),
+            "DEC": dec2dms(objcoord.dec),
             "LST": ra2hms(obs_lst),
             "HA": ra2hms(obs_ha),
             "DATE-OBS": obs_dt,

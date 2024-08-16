@@ -17,7 +17,8 @@ from .q_flatcomb import flatcomb
 from .q_imgcorr import imgcorr
 from .q_offset import offset
 from .q_phot import phot
-from .q_pick import pick
+from .q_sep import photsep
+from .q_pick import pick, pick_last
 # from .q_wcs import wcs
 from .q_cata import cata
 from .q_cali import cali
@@ -31,7 +32,7 @@ from .q_cali import cali
 def run(
         raw_dir:str,
         red_dir:str,
-        steps:str="lbfiopcdg",
+        steps:str="lbfiopcd",
         obj:str=None,
         band:str=None,
         use_bias:str=None,
@@ -60,15 +61,16 @@ def run(
         i = Image correct
         o = Offset
         p = find stars and Photometry
+        s = photometry with sep
         w = Wcs
         k = picK ref stars
+        K = loading last picKing result
         c = Catalog
         d = Differential flux
-        g = Graph
     :param obj: object to reduce, if none, reduce all
     :param band: band to reduce, if none, all
     :param use_bias: if specified, use this bias but not today
-    :param use_flat: if specified, use this flat but bot today,
+    :param use_flat: if specified, use this flat but not today,
                      a dict key is band and value is flat file name
     :param alt_bias: if no bias for today, use this one
     :param alt_flat: if no flat for today, use this one
@@ -98,7 +100,8 @@ def run(
         conf,
         raw_dir, red_dir,
         obj, band,
-        mode, "l" in steps
+        mode,
+        "l" in steps
     )
     # print(list_all)
 
@@ -149,8 +152,16 @@ def run(
                     mode
                 )
 
-            # Photometry
+            # Photometry with Source-Extractor
             if "p" in steps:
+                phot(
+                    conf,
+                    red_dir, o, b,
+                    aper,
+                    mode
+                )
+            # Photometry with sep
+            elif "s" in steps:
                 phot(
                     conf,
                     red_dir, o, b,
@@ -176,14 +187,20 @@ def run(
             # picK target, ref, check stars
             # if k specified, or c required but starxy not given or only one
             # here k means pick or not
-            k = "k" in steps  or "K" in steps or \
-                ("c" in steps and (not starxy or len(starxy) == 1))
+            kl = "K" in steps or ("c" in steps and (not starxy or len(starxy) == 1))
+            k = "k" in steps or ("c" in steps and (not starxy or len(starxy) == 1))
             if k:
                 pickxy, picktgt, pickref, pickchk = pick(
                     conf,
                     raw_dir, red_dir, o, b,
                     bm,
-                    "K" in steps,  # load last pick
+                    mode
+                )
+            elif kl:
+                pickxy, picktgt, pickref, pickchk = pick_last(
+                    conf,
+                    raw_dir, red_dir, o, b,
+                    bm,
                     mode
                 )
             else:

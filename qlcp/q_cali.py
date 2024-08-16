@@ -102,8 +102,38 @@ def cali(
         logf.error(f"SKIP {obj} {band} No target, checker or reference star")
         return
 
+    def num2str(prefix, ii):
+        """Transfer serial numbers to string, combing coontinuas numbers"""
+        if len(ii) == 0:
+            # if no number, empty result
+            ss = ""
+        else:
+            # make a copy and sort, no change on original
+            ii = list(ii.copy())
+            ii.sort()
+            # add an end mark, so last part can be discarded
+            ii.append(-1)
+            # init section start and current, and init sections
+            i0 = i1 = ii[0]
+            section = []
+            for i in ii[1:]:
+                # if not continual number, end last and start a new section
+                if i != i1 + 1:
+                    # one item or multi items
+                    if i0 == i1:
+                        section.append(f"{i0:02d}")
+                    else:
+                        section.append(f"{i0:02d}-{i1:02d}")
+                    # init the next section
+                    i0 = i
+                # move on
+                i1 = i
+            ss = prefix + "_".join(section)
+        return ss
+
     # ref string, used in filenames
-    refs = "_".join([f"c{i:02d}" for i in ind_ref])
+    # refs = "_".join([f"c{i:02d}" for i in ind_ref])
+    refs = num2str("c", ind_ref)
 
     # stru of calibrated results, only results
     cat_cali_dt = [[
@@ -167,11 +197,14 @@ def cali(
     # space between each curve
     curve_space = 0.01
     # tgt,chk,ref in filename
-    fn_part = "_".join(
-        [f"v{i:02d}" for i in ind_tgt] +
-        [f"ch{i:02d}" for i in ind_chk] +
-        [f"c{i:02d}" for i in ind_ref]
-    )
+    # fn_part = "_".join(
+    #     [f"v{i:02d}" for i in ind_tgt] +
+    #     [f"ch{i:02d}" for i in ind_chk] +
+    #     [f"c{i:02d}" for i in ind_ref]
+    # )
+    fn_part = (num2str("v", ind_tgt) +
+         "_" + num2str("ch", ind_chk) +
+         "_" + num2str("c", ind_ref))
     # color and marker
     cm_tgt = lambda i: ("rs", "ks", "ys")[i % 3]
     cm_chk = lambda i: ("b*", "g*", "m*", "c*")[i % 4]

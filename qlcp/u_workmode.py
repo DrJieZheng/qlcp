@@ -27,6 +27,7 @@ class workmode:
     EXIST_APPEND  :int = 0b00001000  #   O O
     MISS_ERROR    :int = 0b00100000  # X   X
     MISS_SKIP     :int = 0b01000000  # O   -
+    NONE          :int = 0
 
     def __init__(self, mode:int=MISS_SKIP+EXIST_APPEND):
         """init object"""

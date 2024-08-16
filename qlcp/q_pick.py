@@ -11,6 +11,7 @@
 import os
 import numpy as np
 import astropy.io.fits as fits
+from astropy.stats import sigma_clipped_stats
 from qmatch import match2d
 from .u_conf import config
 from .u_workmode import workmode
@@ -26,7 +27,6 @@ def pick(
         obj:str,
         band:str,
         base_img:int|str=None,
-        load_last:bool=False,
         mode:workmode=workmode(),
 ) -> tuple[list, list, list, list]:
     """
@@ -38,7 +38,6 @@ def pick(
     :param obj: object
     :param band: band
     :param base_img: base image, if str (external file), treet as none
-    :param load_last: if True, load last result
     :param mode: input files missing or output existence mode
     :returns: a tuple with 4 lists
     """
@@ -79,12 +78,12 @@ def pick(
     else:
         base_img = 0
     
-    if load_last:
-        # if load last result, check the file exists
-        if os.path.isfile(pick_pkl):
-            logf.info(f"LOAD saved picking result: {obj} {band}")
-            _, _, _, _, xy, ind_ref, ind_var, ind_chk = pkl_load(pick_pkl)
-            return xy, ind_ref, ind_var, ind_chk
+    # if load_last:
+    #     # if load last result, check the file exists
+    #     if os.path.isfile(pick_pkl):
+    #         logf.info(f"LOAD saved picking result: {obj} {band}")
+    #         _, _, _, _, xy, ind_ref, ind_var, ind_chk = pkl_load(pick_pkl)
+    #         return xy, ind_ref, ind_var, ind_chk
 
     if nf == 0:
         logf.info(f"SKIP {obj} {band} No File")
@@ -121,9 +120,10 @@ def pick(
     magc = magi.copy()
     ximg = magi.copy()
     yimg = magi.copy()
-    # mag calibration const & std
+    # mag calibration const & std, and stars used
     cali_cst = np.zeros(nf, float)
     cali_std = np.zeros(nf, float)
+    cali_n = np.zeros(nf, int)
 
     # match with base image, and fill the matrix
     pbar = tqdm_bar(nf, f"PICK {obj} {band}")
@@ -135,6 +135,7 @@ def pick(
             yimg[f] = y_base
             cali_cst[f] = 0.0
             cali_std[f] = 0.0
+            cali_n[f] = n_base_good
             n_good = n_match = n_base_good
         else:
             # align i-th image with base
@@ -158,11 +159,17 @@ def pick(
             magi[f, ix_base] = mf[ix_f]
             ximg[f, ix_base] = xf[ix_f]
             yimg[f, ix_base] = yf[ix_f]
+            # calibration
             cali_cst[f], cali_std[f] = meanclip(mf[ix_f] - m_base[ix_base])
-            magc[f] = magi[f] - cali_cst[f]
+            cali_n[f] = sum(np.abs(mf[ix_f] - m_base[ix_base] - cali_cst[f]) <= 3 * cali_std[f])
+            # if the count of calibrate stars is too small, then discard this image
+            if cali_n[f] / n_base_good < conf.pick_bad_img:
+                magc[f] = np.nan
+            else:
+                magc[f] = magi[f] - cali_cst[f]
         logf.debug(f"Picking {f:3d}/{nf:3d}: "
-                f"N={n_good:4d}->{n_match:4d}  "
-                f"Cali-Const={cali_cst[f]:+6.3f}+-{cali_std[f]:5.3f} | "
+                f"N={n_good:4d}->{n_match:3d}  "
+                f"Cali-Const={cali_cst[f]:+6.3f}+-{cali_std[f]:5.3f}/{cali_n[f]:3d} | "
                 f"{bbff}")
         pbar.update(1)
     pbar.close()
@@ -179,8 +186,12 @@ def pick(
     magstd = np.nanstd(magc, axis=0)
     # diff between min and max of each star
     magdif = np.nanmax(magc, axis=0) - np.nanmin(magc, axis=0)
+    # bad image count
+    n_bad_image = sum(cali_n / n_base_good < conf.pick_bad_img)
+    bad_image_id = ",".join(f"{i:d}" for i in np.where(cali_n / n_base_good < conf.pick_bad_img)[0])
+    logf.debug(f"Bad image count: {n_bad_image}/{nf}: {bad_image_id}")
     # percent of bad (nan) of each star
-    magbad = np.sum(np.isnan(magc), axis=0) / nf
+    magbad = (np.sum(np.isnan(magc), axis=0) - n_bad_image) / nf
 
     # pick variable stars, by mag std, and distance to center
     ix_var = np.where((magstd > conf.pick_var_std) &
@@ -233,7 +244,45 @@ def pick(
                      f"  {magmed[k]:5.2f}+-{magstd[k]:5.3f} !{magbad[k]*100:4.1f}%\n")
     # dump result to pickle file
     pkl_dump(pick_pkl, magi, magc, ximg, yimg, 
+                cali_cst, cali_std, x_mean, x_std, y_mean, y_std,
                 xy, ind_ref, ind_var, ind_chk,
                 magmed, magstd, magdif, magbad)
 
     return xy, ind_var, ind_ref, ind_chk
+
+
+def pick_last(
+        conf:config,
+        raw_dir:str,
+        red_dir:str,
+        obj:str,
+        band:str,
+        base_img:int|str=None,
+        mode:workmode=workmode(),
+) -> tuple[list, list, list, list]:
+    """
+    try to load last picking result, if not exists, do a new picking
+    :param conf: config object
+    :param raw_dir: raw files dir
+    :param red_dir: red files dir
+    :param obj: object
+    :param band: band
+    :param base_img: base image, if str (external file), treet as none
+    :param mode: input files missing or output existence mode
+    :returns: a tuple with 4 lists
+    """
+    logf = init_logger("pick", f"{red_dir}/log/pick.log", conf)
+    pick_pkl = f"{red_dir}/pick_{obj}_{band}.pkl"
+    if os.path.isfile(pick_pkl):
+        logf.info(f"LOAD saved picking result: {obj} {band}")
+        (
+            magi, magc, ximg, yimg, 
+            cali_cst, cali_std, x_mean, x_std, y_mean, y_std,
+            xy, ind_ref, ind_var, ind_chk,
+            magmed, magstd, magdif, magbad
+        ) = pkl_load(pick_pkl)
+    else:
+        logf.info(f"NO saved picking result: {obj} {band}, picking")
+        xy, ind_ref, ind_var, ind_chk = pick(
+            conf, raw_dir, red_dir, obj, band, base_img, mode)
+    return xy, ind_ref, ind_var, ind_chk

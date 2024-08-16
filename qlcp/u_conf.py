@@ -52,6 +52,7 @@ class config:
         # star pick
         self.pick_err_max       = 0.10          # max error for pick stars
         self.pick_star_n        = 100           # max number of stars
+        self.pick_bad_img       = 0.8           # factor of bad image
         self.pick_bad_max       = 0.2           # factor of bad stars
         self.pick_var_n         = 5             # max number of variable stars
         self.pick_var_std       = 0.10          # std of the variance stars

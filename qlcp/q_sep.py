@@ -17,14 +17,14 @@ from .u_conf import config
 from .u_workmode import workmode
 from .u_log import init_logger
 from .u_utils import loadlist, rm_ix, zenum, meanclip, tqdm_bar
+import sep
 
 
-def phot(
+def photsep(
         conf:config,
         red_dir:str,
         obj:str,
         band:str,
-        # se_cmd:str="source-extractor",
         aper:float|list[float]=None,
         mode:workmode=workmode(),
 ):
@@ -41,20 +41,6 @@ def phot(
     """
     logf = init_logger("phot", f"{red_dir}/log/phot.log", conf)
     mode.reset_append(workmode.EXIST_SKIP)
-
-    # check se cmd
-    # if os.system(f"which {se_cmd} > /dev/null"):
-    #     raise OSError(f"Wrong Source-Extractor Command: {se_cmd}")
-    
-    # check installation of se
-    if os.system(f"which sex > /dev/null") == 0:
-        se_cmd = "sex"
-    elif os.system(f"which source-extractor > /dev/null") == 0:
-        se_cmd = "source-extractor"
-    elif os.system(f"which sextractor > /dev/null") == 0:
-        se_cmd = "sextractor"
-    else:
-        raise OSError("No Source-Extractor Installed")
 
     # list file, and load list
     listfile = f"{red_dir}/lst/{obj}_{band}.lst"
@@ -91,13 +77,6 @@ def phot(
 
     logf.debug(f"{nf} files for {obj} {band}")
 
-    # se_command and parameters, use local if exists
-    if os.path.isfile("default.sex"):
-        se_sex = "default.sex"
-    else:
-        se_sex = conf.here + "default.sex"
-    logf.info(f"SE Conf: {se_sex}")
-    se_par = conf.here + "default.param"
     # remark any aperture providec by caller
     no_aper = not aper
     # apertures
@@ -148,57 +127,68 @@ def phot(
     pbar = tqdm_bar(nf, f"PHOT {obj} {band}")
     for i, (scif, sef, catf, txtf, pngf) in zenum(
             bf_fits_list, se_fits_list, cat_fits_list, cat_txt_list, cat_png_list):
-
-        # call se for fwhm
-        logf.debug(f"SE {i+1:03d}/{nf:03d}: "+se_fwhm.format(scif, sef))
-        os.system(se_fwhm.format(scif, sef))
-        # load and processor catalog
-        secat = fits.getdata(sef, 2)
+        
+        # load data from fits and byte swap
+        data = fits.getdata(scif)
+        data = data.byteswap(inplace=True).newbyteorder()
+        # background
+        bkg = sep.Background(data, mask=mask, bw=64, bh=64, fw=3, fh=3)
+        bkg_image = bkg.back()
+        bkg_rms = bkg.rms()
+        data_sub = data - bkg
+        # source extract
+        stars = sep.extract(data_sub, 3.0, err=bkg.globalrms)
+        # exclude border stars, and sort by flux
         ix = np.where(
-            (bc < secat["X_IMAGE"]) & (secat["X_IMAGE"] < nx - bc) &
-            (bc < secat["Y_IMAGE"]) & (secat["Y_IMAGE"] < ny - bc) &
-            (secat["MAGERR_AUTO"] < 0.05)) [0]
-        fwhm, _ = meanclip(secat["FWHM_IMAGE"][ix])
-
-        # call se
-        apcomma = ",".join([f"{a:.1f}" if a > 0 else f"{-a*fwhm:.1f}" for a in aper])
-        logf.debug(f"SE {i+1:03d}/{nf:03d}: "+se_call.format(scif, sef, apcomma))
-        os.system(se_call.format(scif, sef, apcomma))
-
-        # load and processor catalog
-        secat = fits.getdata(sef, 2)
-        # remove stars at border
-        ix = np.where(
-            (bc < secat["X_IMAGE_DBL"]) & (secat["X_IMAGE_DBL"] < nx - bc) &
-            (bc < secat["Y_IMAGE_DBL"]) & (secat["Y_IMAGE_DBL"] < ny - bc) )[0]
-        secat = secat[ix]
-
-        ns = len(ix)
+            (bc < stars["x"]) & (stars["x"] < nx - bc) &
+            (bc < stars["y"]) & (stars["y"] < ny - bc) )[0]
+        ix = ix[np.argsort(stars["flux"][ix])][::-1]
+        stars = stars[ix]
+        ns = len(stars)
+        # make an empty catalog array
         mycat = np.empty(ns, mycatdt)
-        mycat["Num"     ] = secat["NUMBER"]
-        mycat["X"       ] = secat["X_IMAGE_DBL"] -1
-        mycat["Y"       ] = secat["Y_IMAGE_DBL"] -1
-        mycat["Elong"   ] = secat["ELONGATION"]
-        mycat["FWHM"    ] = secat["FWHM_IMAGE"]
-        mycat["MagAUTO" ] = secat["MAG_AUTO"]
-        mycat["ErrAUTO" ] = secat["MAGERR_AUTO"]
-        mycat["FluxAUTO"] = secat["FLUX_AUTO"]
-        mycat["FErrAUTO"] = secat["FLUXERR_AUTO"]
-        mycat["Flags"   ] = secat["FLAGS"]
-        mycat["Alpha"   ] = secat["ALPHA_J2000"]
-        mycat["Delta"   ] = secat["DELTA_J2000"]
-        for k, a in enumerate(apstr):
-            mycat[f"Mag{a}" ] = secat["MAG_APER"]    [:, k]
-            mycat[f"Err{a}" ] = secat["MAGERR_APER"] [:, k]
-            mycat[f"Flux{a}"] = secat["FLUX_APER"]   [:, k]
-            mycat[f"FErr{a}"] = secat["FLUXERR_APER"][:, k]
+        # fill basic info
+        mycat["Num"     ] = np.arange(ns)
+        mycat["X"       ] = stars["x"]
+        mycat["Y"       ] = stars["y"]
+        mycat["Elong"   ] = 0
+        mycat["FWHM"    ] = 0
+        mycat["Alpha"   ] = 0.0
+        mycat["Delta"   ] = 0.0
+        # photometry on apers
+        for a, s in zip(aper, apstr):
+            flux, fluxerr, flag = sep.sum_circle(data_sub, stars['x'], stars['y'], a, err=bkg.globalrms, gain=1.0)
+            mag = 25 - 2.5 * np.log10(flux)
+            magerr = 2.5 * np.log10(1 - fluxerr / flux)
+            mycat[f"Mag{a}" ] = mag
+            mycat[f"Err{a}" ] = magerr
+            mycat[f"Flux{a}"] = flux
+            mycat[f"FErr{a}"] = fluxerr
+        # auto photometry
+        kronrad, krflag = sep.kron_radius(
+            data_sub, 
+            stars['x'], stars['y'], 
+            stars['a'], stars['b'], stars['theta'], 6.0)
+        flux, fluxerr, flag = sep.sum_ellipse(
+            data_sub, 
+            stars['x'], stars['y'], 
+            stars['a'], stars['b'], stars['theta'], 
+            2.5*kronrad, subpix=1)
+        flag |= krflag  # combine flags into 'flag'
+        mag = 25 - 2.5 * np.log10(flux)
+        magerr = 2.5 * np.log10(1 - fluxerr / flux)
+        mycat["Flags"   ] = flag
+        mycat["MagAUTO" ] = mag
+        mycat["ErrAUTO" ] = magerr
+        mycat["FluxAUTO"] = flux
+        mycat["FErrAUTO"] = fluxerr
 
         hdr = fits.getheader(scif)
         hdr["IMNAXIS1"] = hdr["NAXIS1"]
         hdr["IMNAXIS2"] = hdr["NAXIS2"]
         hdr["APERS"] = ','.join(apstr)
         hdr["NAPER"] = len(apstr)
-        hdr["FWHM"] = fwhm
+        hdr["FWHM"] = 0.0
         for k, a in enumerate(apstr):
             hdr[f"APER{k+1:1d}"] = float(a)
 
