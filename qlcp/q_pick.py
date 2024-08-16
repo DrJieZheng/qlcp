@@ -97,9 +97,9 @@ def pick(
     offset_y = dict(zip(offset_bf_fits_list, offset_y))
     fn_len_max = max(len(f) for f in offset_bf_fits_list)
 
-    # nx = fits.getval(bf_fits_list[0], "NAXIS1")
-    # ny = fits.getval(bf_fits_list[0], "NAXIS2")
-    nx  = ny = 2048
+    nx = fits.getval(bf_fits_list[0], "NAXIS1")
+    ny = fits.getval(bf_fits_list[0], "NAXIS2")
+    # nx  = ny = 2048
 
     # load base image catalog and choose good stars
     cat_base = fits.getdata(cat_fits_list[base_img])
