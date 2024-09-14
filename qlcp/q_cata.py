@@ -146,7 +146,7 @@ def cata(
     ]
     cat_inst = np.empty(nf, cat_inst_dt)
     # set unmatched default
-    cat_inst["ID"] = -1
+    cat_inst["ID"] = 65535
     cat_inst["X"] = np.nan
     cat_inst["Y"] = np.nan
     cat_inst["FWHM"] = np.nan
@@ -156,7 +156,6 @@ def cata(
         cat_inst[f"Err{a}" ] = np.nan
         cat_inst[f"Flux{a}"] = np.nan
         cat_inst[f"FErr{a}"] = np.nan
-    
 
     pbar = tqdm_bar(nf, f"CATA {obj} {band}")
     # load stars from images into the array, by matching x,y

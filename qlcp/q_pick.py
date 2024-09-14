@@ -220,7 +220,7 @@ def pick(
     xy_var = [(x_mean[k], y_mean[k]) for k in ix_var]
 
     # combind the result, and make indice
-    xy = xy_ref + xy_var
+    xy = xy_var + xy_ref
     ind_var = np.arange(len(xy_var), dtype=int)
     ind_ref = np.arange(len(xy_var), len(xy), dtype=int)
     ind_chk = np.arange(len(xy_var), len(xy), dtype=int)

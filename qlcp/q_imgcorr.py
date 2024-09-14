@@ -13,7 +13,6 @@ import re
 # import numpy as np
 import astropy.io.fits as fits
 from astropy import time, coordinates as coord, units as u
-# from PyAstronomy import pyasl
 from qastutil import lst, azalt, airmass
 from .u_conf import config
 from .u_workmode import workmode
@@ -158,7 +157,6 @@ def imgcorr(
             # jd + ra/dec to bjd, hjd
             ltt_bary = obs_jd.light_travel_time(objcoord, kind="barycentric")
             obs_bjd = (obs_jd.tdb + ltt_bary).jd
-            # obs_hjd = pyasl.helio_jd(obs_jd.jd - 2.4e6, objcoord.ra.deg, objcoord.dec.deg) + 2.4e6
             ltt_helio = obs_jd.light_travel_time(objcoord, kind="heliocentric")
             obs_hjd = obs_jd.jd + ltt_helio.jd
             # az, alt, airmass

@@ -16,7 +16,7 @@ QLCP （Quick Light Curve Pipeline）为一个地基望远镜时域观测数据�
 pip3 install qlcp
 ```
 
-要求：Python版本至少为3.10。需要安装的其他软件包为：`numpy`, `scipy`, `matplotlib`, `astropy`, `PyAstronomy`, `tqdm`, `qastutil`, `qmatch`，正常情况下，pip3（或pip）会识别到这些依赖项目并进行自动安装。
+要求：Python版本至少为3.10。需要安装的其他软件包为：`numpy`, `scipy`, `matplotlib`, `astropy`, `tqdm`, `qastutil`, `qmatch`，正常情况下，pip3（或pip）会识别到这些依赖项目并进行自动安装。
 
 ## 2. 运行
 
@@ -31,6 +31,12 @@ qlcp.run(
 )
 ```
 
+或者从终端直接调用
+
+```sh
+python3 -m qlcp action path/to/raw/data path/to/output
+```
+
 具体参数见下文。
 
 ## 3. 参数
@@ -40,7 +46,7 @@ qlcp.run(
 ```py
 raw_dir:str,
 red_dir:str,
-steps:str="lbfiopwkcdg",
+steps:str="lbfiopwkcd",
 obj:str=None,
 band:str=None,
 use_bias:str=None,

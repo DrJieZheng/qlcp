@@ -63,7 +63,7 @@ Commands:
 
         # parse arguments
         parser = argparse.ArgumentParser(description="Quick Light Curve Pipeline")
-        parser.add_argument("action", type=str, default="lbfiopcd", required=False,
+        parser.add_argument("action", type=str, default="lbfiopcd",
             help="""Action to be performed, steps, each char stands for one step
     l = List
     b = Bias comb

@@ -17,7 +17,7 @@ from .q_flatcomb import flatcomb
 from .q_imgcorr import imgcorr
 from .q_offset import offset
 from .q_phot import phot
-from .q_sep import photsep
+# from .q_sep import photsep
 from .q_pick import pick, pick_last
 # from .q_wcs import wcs
 from .q_cata import cata

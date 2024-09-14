@@ -94,7 +94,7 @@ def flatcomb(
             data_cube[i, :, :] = data_tmp / data_tmp_med
             logf.debug(f"Loading {i+1:02d}/{nf:02d}: {f:40s} / Scaled by {data_tmp_med:7.1f}")
         else:
-            data_cube[f, :, :] = np.nan
+            data_cube[i, :, :] = np.nan
             logf.warning(f"Ignore  {i+1:02d}/{nf:02d}: {f:40s} / XXX MED = {data_tmp_med:7.1f}")
 
     # get median
