@@ -4,7 +4,7 @@
 
 QLCP is a quick, easy-to-use pipeline for processing light curves from images observed by any ground based telescope.
 
-By Dr Jie Zheng (NAOC) & Prof/Dr Lin-Qiao Jiang (LSNU)
+By Dr Jie Zheng (NAOC) & Prof/Dr Lin-Qiao Jiang (LSNU) & Chao-yue Li (LSNU)
 
 ## Installation:
 
